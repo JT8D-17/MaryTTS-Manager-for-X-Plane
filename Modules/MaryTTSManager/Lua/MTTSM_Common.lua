@@ -169,7 +169,7 @@ function MTTSM_FileWrite(inputtable,outputfile,log)
     end 
     -- Start writing to output file, write temptable and then inputtable
     file = io.open(outputfile,"w")
-    file:write("Aircraft Tools for X-Plane configuration created/updated on ",os.date("%x, %H:%M:%S"),"\n")
+    file:write("MaryTTS Manager interface file created/updated on ",os.date("%x, %H:%M:%S"),"\n")
     file:write("\n")
     for j=3,#temptable do
         file:write(temptable[j].."\n")
