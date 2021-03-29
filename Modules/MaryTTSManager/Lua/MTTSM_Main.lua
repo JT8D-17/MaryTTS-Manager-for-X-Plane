@@ -14,6 +14,13 @@ local MTTSM_PageInitStatus = 0            -- Page initialization variable
 local MTTSM_Module_SaveFile = MODULES_DIRECTORY.."MaryTTSManager/MaryTTS_Test.cfg" -- Path to config file
 local MTTSM_BaseFolder = MODULES_DIRECTORY.."MaryTTSManager/Resources/"
 local MTTSM_InterfFolder = MODULES_DIRECTORY.."MaryTTSManager/Interfaces"
+local MTTSM_InputBaseFolder = {
+    {"MaryTTSManager Directory",MODULES_DIRECTORY},
+    {"X-Plane Plugins Directory",SYSTEM_DIRECTORY.."Resources"..DIRECTORY_SEPARATOR.."plugins/"},
+    {"X-Plane Base Directory",SYSTEM_DIRECTORY},
+    {"Current Aircraft Directory",AIRCRAFT_PATH},
+    {"FWL Scripts Directory",SCRIPT_DIRECTORY},
+    }
 local MTTSM_InterfaceContainer = {  -- Container for interfaces
 {"None/Testing"},       -- Default interface for local output
 {"Create New Interface"}, -- Creates new interface
@@ -21,8 +28,8 @@ local MTTSM_InterfaceContainer = {  -- Container for interfaces
 local MTTSM_InterfaceData = {
 {"PluginName"},           -- SAVE FILE IDENTIFIER; KEEP UNIQUE TO THIS ARRAY
 {"Dataref","None"},
-{"Input","None"},
-{"Output",MTTSM_BaseFolder.."transmission.wav"},
+{"Input",MTTSM_InputBaseFolder[1][1],"Input_MaryTTS.txt","::"},
+{"Output",MTTSM_InputBaseFolder[1][1],"transmission.wav"},
 {"Voicemap"},
 }
 local MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-11.0.7+10-jre/bin/"
@@ -44,6 +51,21 @@ local MTTSM_TestString = " "
 FUNCTIONS
 
 ]]
+--[[
+DYNAMIC PATHS
+]]
+local function MTTSM_PathConstructor(mode,size)
+    local inputtable = MTTSM_InterfaceContainer
+    local tabindex = MTTSM_SubTableIndex(inputtable,MTTSM_InterfaceSelected)
+    if mode == "Input" or mode == "Output" then
+        if size == "Full" then
+            return MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_SubTableValGet(inputtable[tabindex][2],tostring(mode),0,2),0,2)..MTTSM_SubTableValGet(inputtable[tabindex][2],tostring(mode),0,3)
+        end
+        if size == "Base" then
+            return MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_SubTableValGet(inputtable[tabindex][2],tostring(mode),0,2),0,2)
+        end
+    end
+end
 --[[
 SERVER
 ]]
@@ -100,7 +122,7 @@ local function MTTSM_CheckProc()
     MTTSM_Process = tonumber(handle:read("*a"))
     --print(tostring(MTTSM_Process))
 end
---[[ MaryTTS watchdog - runs every second ]]
+--[[ MaryTTS watchdog - runs every second in MTTSM_Main_1sec() in MaryTTSManager.lua ]]
 function MTTSM_Watchdog()
     -- Process checking function
     MTTSM_CheckProc()
@@ -110,7 +132,6 @@ function MTTSM_Watchdog()
     if MTTSM_Process ~= nil and MTTSM_Status == "Stopped" then MTTSM_CheckServerLog("Starting") MTTSM_Log_Write("MaryTTS server: Already running (PID: "..MTTSM_Process..")") end
     MTTSM_PlayWav()
 end
-do_often("MTTSM_Watchdog()")
 --[[
 INTERFACES
 ]]
@@ -154,23 +175,19 @@ end
 local function MTTSM_InterfaceLoad(inputfolder,container,datatable)
     MTTSM_GetFileList(inputfolder,container,"*.cfg")                              -- Obtains the list of interfaces
     for i=1,#container do
+        local indexvar = nil
+        container[i][2] = { } -- Create empty table in container table
+        for j=1,#datatable do container[i][2][j] = { } end -- Fill container subtable with empty tables corresponding to the size of the input datatable
         -- Build subtables in container table
-        container[i][2] = { }
-        container[i][2][1] = { }
-        if i ~= 2 then container[i][2][1][1] = container[i][1] else container[i][2][1][1] = "New Interface" end --MTTSM_InterfaceData[1][1] -- "PluginName"
-        container[i][2][2] = { }
-        container[i][2][2][1] = MTTSM_InterfaceData[2][1] -- "Dataref"
-        container[i][2][3] = { }
-        container[i][2][3][1] = MTTSM_InterfaceData[3][1] -- "Input"
-        container[i][2][4] = { }
-        container[i][2][4][1] = MTTSM_InterfaceData[4][1] -- "Output"
-        container[i][2][5] = { }
-        container[i][2][5][1] = MTTSM_InterfaceData[5][1] -- "Voicemap"
-        -- Fill subtable for the default interface
-        container[i][2][2][2] = MTTSM_InterfaceData[2][2] -- "Dataref"
-        container[i][2][3][2] = MTTSM_InterfaceData[3][2] -- "Input"
-        container[i][2][4][2] = MTTSM_InterfaceData[4][2] -- "Output"
-        container[i][2][5][2] = MTTSM_InterfaceData[5][2] -- "Voicemap"
+        if i ~= 2 then container[i][2][1][1] = container[i][1] else container[i][2][1][1] = "New Interface" end -- First subtable in container subtable is reserved for the interface name
+        indexvar = MTTSM_SubTableIndex(datatable,"Dataref")
+        for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for dataref subtable to subtable in container
+        indexvar = MTTSM_SubTableIndex(datatable,"Input")
+        for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for input subtable to subtable in container
+        indexvar = MTTSM_SubTableIndex(datatable,"Output")
+        for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for output subtable to subtable in container
+        indexvar = MTTSM_SubTableIndex(datatable,"Voicemap")
+        for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for voicemap subtable to subtable in container
         -- Read interface files
         if i >= 3 then MTTSM_FileRead(inputfolder.."/"..container[i][1]..".cfg",container[i][2]) end -- Read data from file into interface data table
     end
@@ -180,12 +197,14 @@ end
 local function MTTSM_InterfaceSelector(inputtable)
     imgui.TextUnformatted("Selected Interface  ") imgui.SameLine()
     imgui.PushItemWidth(MTTSM_SettingsValGet("Window_W")-278)
-    if imgui.BeginCombo("##Combo1",MTTSM_InterfaceSelected) then
+    if imgui.BeginCombo("##ComboInterfaceSelect",MTTSM_InterfaceSelected) then
         -- Loop over all choices
         for i = 1, #inputtable do
             if imgui.Selectable(inputtable[i][1], choice == i) then
                 MTTSM_InterfaceSelected = inputtable[i][1]
                 --print(MTTSM_InterfaceSelected)
+                if MTTSM_InterfaceSelected == "Create New Interface" then if MTTSM_InterfaceEditMode == 0 then MTTSM_InterfaceEditMode = 1 end
+                else if MTTSM_InterfaceEditMode == 1 then MTTSM_InterfaceEditMode = 0 end end
                 choice = i
             end
         end
@@ -221,14 +240,44 @@ local function MTTSM_InterfaceStatus(inputtable)
         if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Dataref",0,2,tostring(buffer)) buffer = nil end end
         MTTSM_ItemTooltip("The dataref that is used to check whether another plugin is active or not. Currently set to:\n"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Dataref",0,2))
     end
+    imgui.TextUnformatted(editstring.."Input Base Path ") imgui.SameLine()
+    if imgui.BeginCombo("##ComboInputFile",MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,2)) then
+        for i = 1, #MTTSM_InputBaseFolder do
+            if imgui.Selectable(MTTSM_InputBaseFolder[i][1], choice == i) then
+                MTTSM_SubTableValSet(inputtable[tabindex][2],"Input",0,2,MTTSM_InputBaseFolder[i][1])
+                --print(MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,2).." -> "..MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_InputBaseFolder[i][1],0,2))
+                choice = i
+            end
+        end
+        imgui.EndCombo()
+    end
+    MTTSM_ItemTooltip("The base folder from which the location of the input text file is defined. Absolute path on *your system*:\n"..MTTSM_PathConstructor("Input","Base"))
+    --MTTSM_ItemTooltip("The text file the plugin writes its MaryTTS information into. Currently set to:\n"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,3))
     imgui.TextUnformatted(editstring.."Input Text File ") imgui.SameLine()
-    local changed,buffer = imgui.InputText("##Input"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,2), 1024)
-    if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Input",0,2,tostring(buffer)) buffer = nil end end
-    MTTSM_ItemTooltip("The text file the plugin writes its MaryTTS information into. Currently set to:\n"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,2))
+    local changed,buffer = imgui.InputText("##Input"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,3), 1024)
+    if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Input",0,3,tostring(buffer)) buffer = nil end end
+    MTTSM_ItemTooltip("The location and filename of the input text file relative to the base folder above. The complete absolute path on *your system*:\n"..MTTSM_PathConstructor("Input","Full"))
+    imgui.TextUnformatted(editstring.."Input Delimiter ") imgui.SameLine()
+    local changed,buffer = imgui.InputText("##Delimiter"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4), 1024)
+    if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Input",0,4,tostring(buffer)) buffer = nil end end
+    MTTSM_ItemTooltip("The sign that is used to separate voice and string to be spoken in the text file.")
+    imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),10)
+    imgui.TextUnformatted(editstring.."Output Base Path") imgui.SameLine()
+    if imgui.BeginCombo("##ComboOutputWAV",MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,2)) then
+        for i = 1, #MTTSM_InputBaseFolder do
+            if imgui.Selectable(MTTSM_InputBaseFolder[i][1], choice == i) then
+                MTTSM_SubTableValSet(inputtable[tabindex][2],"Output",0,2,MTTSM_InputBaseFolder[i][1])
+                print(MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,2).." -> "..MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_InputBaseFolder[i][1],0,2))
+                choice = i
+            end
+        end
+        imgui.EndCombo()
+    end
+    MTTSM_ItemTooltip("The base folder from which the location of the output WAV file is defined. Absolute path on *your system*:\n"..MTTSM_PathConstructor("Output","Base"))    
     imgui.TextUnformatted(editstring.."Output WAV File ") imgui.SameLine()
-    local changed,buffer = imgui.InputText("##Output"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,2), 1024)
-    if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Output",0,2,tostring(buffer)) buffer = nil end end
-    MTTSM_ItemTooltip("The WAV file that MaryTTS is supposed to write its output to. Currently set to:\n"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,2))
+    local changed,buffer = imgui.InputText("##Output"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,3), 1024)
+    if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Output",0,3,tostring(buffer)) buffer = nil end end
+    MTTSM_ItemTooltip("The location and filename of the output WAV file relative to the base folder above. The complete absolute path on *your system*:\n"..MTTSM_PathConstructor("Output","Full"))
     imgui.PopItemWidth()
     if MTTSM_InterfaceSelected ~= MTTSM_InterfaceContainer[1][1] then
         if MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") > 1 then
@@ -236,7 +285,7 @@ local function MTTSM_InterfaceStatus(inputtable)
                 imgui.PushItemWidth(MTTSM_SettingsValGet("Window_W")-370)
                 imgui.TextUnformatted(editstring.."Voice Mapping "..string.format("%02d",(j-1))) imgui.SameLine()
                 local changed,buffer = imgui.InputText("##Mapping"..MTTSM_InterfaceSelected..(j-1),MTTSM_SubTableValGet(inputtable[tabindex][2],"Voicemap",j,1), 256)
-                --if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Voicemap",j,1,tostring(buffer)) buffer = nil end
+                if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Voicemap",j,1,tostring(buffer)) buffer = nil end end
                 MTTSM_ItemTooltip("This is the keyword from the plugin's output text file that will be associated to the voice on the right. If the keyword does not match the one in the plugin output, a random voice will be selected.")
                 imgui.PopItemWidth()
                 imgui.SameLine()

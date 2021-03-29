@@ -160,6 +160,8 @@ INITIALIZATION
 function MTTSM_Main_1sec()
     if not MTTSM_Initialized then 
         MTTSM_Main_Init()
+    else
+        MTTSM_Watchdog()
     end
 end
 do_often("MTTSM_Main_1sec()")
