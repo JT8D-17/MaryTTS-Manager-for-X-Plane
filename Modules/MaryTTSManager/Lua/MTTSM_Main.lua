@@ -15,7 +15,7 @@ local MTTSM_Module_SaveFile = MODULES_DIRECTORY.."MaryTTSManager/MaryTTS_Test.cf
 local MTTSM_BaseFolder = MODULES_DIRECTORY.."MaryTTSManager/Resources/"
 local MTTSM_InterfFolder = MODULES_DIRECTORY.."MaryTTSManager/Interfaces"
 local MTTSM_InputBaseFolder = {
-    {"MaryTTSManager Directory",MODULES_DIRECTORY},
+    {"MaryTTSManager Directory",MODULES_DIRECTORY.."MaryTTSManager/"},
     {"X-Plane Plugins Directory",SYSTEM_DIRECTORY.."Resources"..DIRECTORY_SEPARATOR.."plugins/"},
     {"X-Plane Base Directory",SYSTEM_DIRECTORY},
     {"Current Aircraft Directory",AIRCRAFT_PATH},
@@ -29,9 +29,10 @@ local MTTSM_InterfaceData = {
 {"PluginName"},           -- SAVE FILE IDENTIFIER; KEEP UNIQUE TO THIS ARRAY
 {"Dataref","None"},
 {"Input",MTTSM_InputBaseFolder[1][1],"Input_MaryTTS.txt","::"},
-{"Output",MTTSM_InputBaseFolder[1][1],"transmission.wav"},
+{"Output",MTTSM_InputBaseFolder[1][1],"transmission.wav","FlyWithLua"},
 {"Voicemap"},
 }
+local MTTSM_PlaybackAgent = {"FlyWithLua","Plugin"}
 local MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-11.0.7+10-jre/bin/"
 local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
 local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
@@ -46,6 +47,8 @@ local MTTSM_VoiceList = { }
 local MTTSM_VoiceSelected = " "
 local MTTSM_FilterList = {"None","JetPilot"}
 local MTTSM_TestString = " "
+local MTTSM_ActiveInterfaces = { }
+local MTTSM_ServerProcessQueue = { }
 --[[
 
 FUNCTIONS
@@ -54,9 +57,9 @@ FUNCTIONS
 --[[
 DYNAMIC PATHS
 ]]
-local function MTTSM_PathConstructor(mode,size)
+local function MTTSM_PathConstructor(interface,mode,size)
     local inputtable = MTTSM_InterfaceContainer
-    local tabindex = MTTSM_SubTableIndex(inputtable,MTTSM_InterfaceSelected)
+    local tabindex = MTTSM_SubTableIndex(inputtable,interface)
     if mode == "Input" or mode == "Output" then
         if size == "Full" then
             return MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_SubTableValGet(inputtable[tabindex][2],tostring(mode),0,2),0,2)..MTTSM_SubTableValGet(inputtable[tabindex][2],tostring(mode),0,3)
@@ -67,24 +70,24 @@ local function MTTSM_PathConstructor(mode,size)
     end
 end
 --[[
-SERVER
+SERVER MANAGEMENT
 ]]
 --[[ Checks the MaryTTS server's log file for startup and shutdown indicatons ]]
 local function MTTSM_CheckServerLog(mode)
    local file = io.open(MTTSM_ServerLog,"r")
    if file then
         for line in file:lines() do
-            if mode == "Starting" and string.match(line,"marytts.server Waiting for client to connect on port") then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS server: Started","Success") MTTSM_Log_Write("MaryTTS server: Started (PID: "..MTTSM_Process..")") end
-            if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then print("xxx") MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS server: Stopped","Success") MTTSM_Log_Write("MaryTTS server: Stopped") end
+            if mode == "Starting" and string.match(line,"marytts.server Waiting for client to connect on port") then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") end
+            if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") end
         end
    end
 end
 --[[ Starts the MaryTTS server ]]
 local function MTTSM_Server_Start()
-    os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS: Deleted old server log file")
+    os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS Server: Deleted old server log file")
     if MTTSM_Status == "Stopped" then
         os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\" &')
-        MTTSM_Notification("MaryTTS server: Starting","Advisory") MTTSM_Log_Write("MaryTTS server: Starting")
+        MTTSM_Notification("MaryTTS Server: Starting","Advisory") MTTSM_Log_Write("MaryTTS Server: Starting")
         MTTSM_Status = "Starting"
     end
 end
@@ -92,19 +95,59 @@ end
 local function MTTSM_Server_Stop()
     if MTTSM_Status == "Running" then
         os.execute('kill '..MTTSM_Process)
-        MTTSM_Notification("MaryTTS server: Stopping","Advisory") MTTSM_Log_Write("MaryTTS server: Stopping")
+        MTTSM_Notification("MaryTTS Server: Stopping","Advisory") MTTSM_Log_Write("MaryTTS Server: Stopping")
         MTTSM_Status = "Stopping"
     end
 end
+--[[
+PLAYBACK
+]]
 --[[ Speaks an input string with the input voice ]]
 local function MTTSM_ProcessString(voice,inputstring)
-    
     os.remove(MTTSM_OutputWav)
     local temp = inputstring:gsub(" ","%%20")
     --print(inputstring.."\n"..temp)
     os.execute('curl -o '..MTTSM_OutputWav..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..voice..'&INPUT_TEXT="'..temp)
     --os.execute('curl -o '..MTTSM_OutputWav..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..voice..'&INPUT_TEXT="'..temp)
     --os.execute('curl -o '..MTTSM_OutputWav..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..voice..'&INPUT_TEXT="'..temp)
+end
+--[[ Writes to the selected output file ]]
+local function MTTSM_OutputToFile(interface,voice,string)
+    --print(voice.." says: "..string)
+    local inputtable = MTTSM_InterfaceContainer
+    local tabindex = MTTSM_SubTableIndex(inputtable,interface)
+    local textfile = io.open(MTTSM_PathConstructor(interface,"Input","Full"),"a")
+    if textfile then
+        textfile:write(voice,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4),string,"\n")
+        --print("Writing \""..voice..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4)..string.."\\n\" to "..MTTSM_PathConstructor(interface,"Input","Full"))
+        textfile:close()
+    end
+end
+-- [[ Reads the selected input file ]]
+local function MTTSM_InputFromFile(interface)
+    local inputtable = MTTSM_InterfaceContainer
+    local tabindex = MTTSM_SubTableIndex(inputtable,interface)
+    local textfile = io.open(MTTSM_PathConstructor(interface,"Input","Full"),"r")
+    local oldqueuesize = #MTTSM_ServerProcessQueue
+    if textfile then
+        for line in textfile:lines() do     -- Fill process queue
+            local splitline = MTTSM_SplitString(line,"([^"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4).."]+)")
+            MTTSM_ServerProcessQueue[#MTTSM_ServerProcessQueue+1] = splitline
+        end
+        textfile:close()
+        os.remove(MTTSM_PathConstructor(interface,"Input","Full"))
+        print("MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue.." (+"..(#MTTSM_ServerProcessQueue-oldqueuesize)..")")
+    end
+    -- Send to server
+
+end
+--[[ ]]
+local function MTTSM_SendToServer(inputdata)
+    if #inputdata > 0 then
+        print(table.concat(inputdata[1]," says "))
+        -- send to server here
+        table.remove(inputdata,1)
+    end
 end
 --[[ Plays the output Wav file ]]
 local function MTTSM_PlayWav()
@@ -116,6 +159,9 @@ local function MTTSM_PlayWav()
         os.remove(MTTSM_OutputWav)
     end
 end
+--[[
+PROCESS
+]]
 --[[ Look for MaryTTS' process ]]
 local function MTTSM_CheckProc()
     local handle = io.popen('pgrep -f '..MTTSM_Handle)
@@ -129,8 +175,18 @@ function MTTSM_Watchdog()
     -- Status checking
     if MTTSM_Status == "Starting" then MTTSM_CheckServerLog("Starting") end
     if MTTSM_Status == "Stopping" then MTTSM_CheckServerLog("Stopping") end
-    if MTTSM_Process ~= nil and MTTSM_Status == "Stopped" then MTTSM_CheckServerLog("Starting") MTTSM_Log_Write("MaryTTS server: Already running (PID: "..MTTSM_Process..")") end
-    MTTSM_PlayWav()
+    if MTTSM_Process ~= nil and MTTSM_Status == "Stopped" then MTTSM_CheckServerLog("Starting") MTTSM_Log_Write("MaryTTS Server: Already running (PID: "..MTTSM_Process..")") end
+    --MTTSM_PlayWav()
+    -- Stuff to do when the server is up and running
+    if MTTSM_Process ~= nil and MTTSM_Status == "Running" then
+        for i=1,#MTTSM_ActiveInterfaces do -- Iterate through active interfaces
+            for j=1,#MTTSM_InterfaceContainer do
+                if MTTSM_InterfaceContainer[j][2][1][1] == MTTSM_ActiveInterfaces[i] then -- Match active interface to subtable index in container
+                    MTTSM_InputFromFile(MTTSM_InterfaceContainer[j][2][1][1])
+                end
+            end
+        end
+    end
 end
 --[[
 INTERFACES
@@ -221,7 +277,26 @@ local function MTTSM_AddVoiceMapping(inputtable)
     local temptable = {"None","None"}
     MTTSM_SubTableAdd(inputtable,"Voicemap",temptable)
 end
---[[ Display interface data ]]
+--[[ Find active interfaces ]]
+local function MTTSM_FindActiveInterfaces(container)
+    local inactiveifs = { }
+    MTTSM_ActiveInterfaces[1] = container[1][2][1][1]
+    for i=3,#container do
+        if XPLMFindDataRef(MTTSM_SubTableValGet(container[i][2],"Dataref",0,2)) then 
+            MTTSM_ActiveInterfaces[#MTTSM_ActiveInterfaces+1] = container[i][2][1][1]
+        else
+            inactiveifs[#inactiveifs+1] = container[i][2][1][1]
+        end
+    end
+    MTTSM_Log_Write("MaryTTS Interfaces (Active): "..table.concat(MTTSM_ActiveInterfaces,", "))
+    MTTSM_Log_Write("MaryTTS Interfaces (Inctive): "..table.concat(inactiveifs,", "))
+end
+--[[
+
+UI ELEMENTS
+
+]]
+--[[ Interface status/editor ]]
 local function MTTSM_InterfaceStatus(inputtable)
     --MTTSM_InterfaceSelected = "SimpleATC"
     local tabindex = MTTSM_SubTableIndex(inputtable,MTTSM_InterfaceSelected)
@@ -251,12 +326,12 @@ local function MTTSM_InterfaceStatus(inputtable)
         end
         imgui.EndCombo()
     end
-    MTTSM_ItemTooltip("The base folder from which the location of the input text file is defined. Absolute path on *your system*:\n"..MTTSM_PathConstructor("Input","Base"))
+    MTTSM_ItemTooltip("The base folder from which the location of the input text file is defined. Absolute path on *your system*:\n"..MTTSM_PathConstructor(MTTSM_InterfaceSelected,"Input","Base"))
     --MTTSM_ItemTooltip("The text file the plugin writes its MaryTTS information into. Currently set to:\n"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,3))
     imgui.TextUnformatted(editstring.."Input Text File ") imgui.SameLine()
     local changed,buffer = imgui.InputText("##Input"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,3), 1024)
     if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Input",0,3,tostring(buffer)) buffer = nil end end
-    MTTSM_ItemTooltip("The location and filename of the input text file relative to the base folder above. The complete absolute path on *your system*:\n"..MTTSM_PathConstructor("Input","Full"))
+    MTTSM_ItemTooltip("The location and filename of the input text file relative to the base folder above. The complete absolute path on *your system*:\n"..MTTSM_PathConstructor(MTTSM_InterfaceSelected,"Input","Full"))
     imgui.TextUnformatted(editstring.."Input Delimiter ") imgui.SameLine()
     local changed,buffer = imgui.InputText("##Delimiter"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4), 1024)
     if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Input",0,4,tostring(buffer)) buffer = nil end end
@@ -267,17 +342,28 @@ local function MTTSM_InterfaceStatus(inputtable)
         for i = 1, #MTTSM_InputBaseFolder do
             if imgui.Selectable(MTTSM_InputBaseFolder[i][1], choice == i) then
                 MTTSM_SubTableValSet(inputtable[tabindex][2],"Output",0,2,MTTSM_InputBaseFolder[i][1])
-                print(MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,2).." -> "..MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_InputBaseFolder[i][1],0,2))
+                --print(MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,2).." -> "..MTTSM_SubTableValGet(MTTSM_InputBaseFolder,MTTSM_InputBaseFolder[i][1],0,2))
                 choice = i
             end
         end
         imgui.EndCombo()
     end
-    MTTSM_ItemTooltip("The base folder from which the location of the output WAV file is defined. Absolute path on *your system*:\n"..MTTSM_PathConstructor("Output","Base"))    
+    MTTSM_ItemTooltip("The base folder from which the location of the output WAV file is defined. Absolute path on *your system*:\n"..MTTSM_PathConstructor(MTTSM_InterfaceSelected,"Output","Base"))    
     imgui.TextUnformatted(editstring.."Output WAV File ") imgui.SameLine()
     local changed,buffer = imgui.InputText("##Output"..MTTSM_InterfaceSelected,MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,3), 1024)
     if MTTSM_InterfaceEditMode == 1 then if changed and buffer ~= "" and tostring(buffer) then MTTSM_SubTableValSet(inputtable[tabindex][2],"Output",0,3,tostring(buffer)) buffer = nil end end
-    MTTSM_ItemTooltip("The location and filename of the output WAV file relative to the base folder above. The complete absolute path on *your system*:\n"..MTTSM_PathConstructor("Output","Full"))
+    MTTSM_ItemTooltip("The location and filename of the output WAV file relative to the base folder above. The complete absolute path on *your system*:\n"..MTTSM_PathConstructor(MTTSM_InterfaceSelected,"Output","Full"))
+    imgui.TextUnformatted(editstring.."Play WAV With   ") imgui.SameLine()
+    if imgui.BeginCombo("##ComboPlaybackAgent",MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4)) then
+        for i = 1, #MTTSM_PlaybackAgent do
+            if imgui.Selectable(MTTSM_PlaybackAgent[i], choice == i) then
+                MTTSM_SubTableValSet(inputtable[tabindex][2],"Output",0,4,MTTSM_PlaybackAgent[i])
+                choice = i
+            end
+        end
+        imgui.EndCombo()
+    end
+    MTTSM_ItemTooltip("The agent that plays back the output WAV file.")  
     imgui.PopItemWidth()
     if MTTSM_InterfaceSelected ~= MTTSM_InterfaceContainer[1][1] then
         if MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") > 1 then
@@ -327,7 +413,7 @@ local function MTTSM_InterfaceStatus(inputtable)
     local buttonstring = "Disable"
     if MTTSM_InterfaceEditMode == 1 then buttonstring = "Disable" else buttonstring = "Enable" end
     imgui.Dummy(19,20) imgui.SameLine()
-    if imgui.Button(buttonstring.." Edit Mode",(MTTSM_SettingsValGet("Window_W")-59),20) then if MTTSM_InterfaceEditMode == 0 then MTTSM_InterfaceEditMode = 1 else MTTSM_InterfaceEditMode = 0 end end
+    if MTTSM_InterfaceSelected ~= MTTSM_InterfaceContainer[1][1] and imgui.Button(buttonstring.." Edit Mode",(MTTSM_SettingsValGet("Window_W")-59),20) then if MTTSM_InterfaceEditMode == 0 then MTTSM_InterfaceEditMode = 1 else MTTSM_InterfaceEditMode = 0 end end
     imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),20)
 end
 --[[ Testing area ]]
@@ -355,7 +441,7 @@ local function MTTSM_Testing(inputtable)
         --imgui.SameLine() imgui.Dummy((MTTSM_SettingsValGet("Window_W")-395),20) imgui.SameLine()
         --imgui.Dummy(MTTSM_SettingsValGet("Window_W")-180,5)
         imgui.Dummy(19,20) imgui.SameLine()
-        if imgui.Button("Speak",MTTSM_SettingsValGet("Window_W")-59,20) then MTTSM_ProcessString(MTTSM_VoiceSelected,MTTSM_TestString) end
+        if imgui.Button("Speak",MTTSM_SettingsValGet("Window_W")-59,20) then MTTSM_OutputToFile(MTTSM_InterfaceContainer[1][1],MTTSM_VoiceSelected,MTTSM_TestString) --[[MTTSM_ProcessString(MTTSM_VoiceSelected,MTTSM_TestString)]] end
     else
         imgui.Dummy(19,20) imgui.SameLine()
         imgui.TextUnformatted("MaryTTS server is not running; testing area disabled!")
@@ -377,11 +463,15 @@ local MTTSM_Module_DRefs = {
 INITIALIZATION
 
 ]]
-function MTTSM_ModuleInit_MTTSM_Main()
+function MTTSM_ModuleInit_Main()
     if MTTSM_SettingsValGet("AutoLoad") == 1 then 
-        MTTSM_Log_Write(MTTSM_PageTitle..": Autoloading values from "..MTTSM_Module_SaveFile) 
+        --MTTSM_Log_Write(MTTSM_PageTitle..": Autoloading values from "..MTTSM_Module_SaveFile) 
         --MTTSM_FileRead(MTTSM_Module_SaveFile,MTTSM_InterfaceData)
+        
     end
+    MTTSM_InterfaceLoad(MTTSM_InterfFolder,MTTSM_InterfaceContainer,MTTSM_InterfaceData) 
+    MTTSM_GetFileList(MTTSM_MaryFolder.."/installed",MTTSM_VoiceList,"voice")
+    MTTSM_FindActiveInterfaces(MTTSM_InterfaceContainer)
 end
 --[[ 
 
@@ -390,10 +480,10 @@ IMGUI WINDOW ELEMENT
 ]]
 --[[ Window page initialization ]]
 local function MTTSM_Page_Init()
-    if MTTSM_PageInitStatus == 0 then MTTSM_Refresh_PageDB(MTTSM_PageTitle) MTTSM_InterfaceLoad(MTTSM_InterfFolder,MTTSM_InterfaceContainer,MTTSM_InterfaceData) MTTSM_GetFileList(MTTSM_MaryFolder.."/installed",MTTSM_VoiceList,"voice") MTTSM_PageInitStatus = 1 end
+    if MTTSM_PageInitStatus == 0 then MTTSM_Refresh_PageDB(MTTSM_PageTitle) MTTSM_PageInitStatus = 1 end
 end
 --[[ Window content ]]
-function MTTSM_Win_MTTSM_Main()
+function MTTSM_Win_Main()
     --[[ Check page init status ]]
     MTTSM_Page_Init()
     --[[ Button ]]
@@ -425,7 +515,7 @@ function MTTSM_Win_MTTSM_Main()
         end ]]
         -- Server status display
         imgui.Dummy(19,20) imgui.SameLine()
-        imgui.TextUnformatted("MaryTTS server status: "..MTTSM_Status)
+        imgui.TextUnformatted("MaryTTS Server Status: "..MTTSM_Status)
         if MTTSM_Process ~= nil then imgui.SameLine() imgui.TextUnformatted("(Process ID: "..MTTSM_Process..")") end
         --imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),10)
         -- Server control button

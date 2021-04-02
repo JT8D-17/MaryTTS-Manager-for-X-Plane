@@ -45,7 +45,7 @@ local function MTTSM_Main_Init()
     MTTSM_SettingsFileRead() 				-- Trigger reading the UI settings file
     if MTTSM_SettingsValGet("WindowIsOpen") == 1 then MTTSM_Window_Show() end -- If window open flag was true, build the window
     MTTSM_Menu_Init()
-    MTTSM_ModuleInit_MTTSM_Main()
+    MTTSM_ModuleInit_Main()
     MTTSM_Initialized = true
     if MTTSM_Initialized then print("---> "..MTTSM_ScriptName.." initialized.") MTTSM_Log_Write("INIT: Finished "..MTTSM_ScriptName.." initialization") end
 end
@@ -135,7 +135,7 @@ function MTTSM_Window_Build(MTTSM_Window,xpos,ypos)
     imgui.PushTextWrapPos(MTTSM_SettingsValGet("Window_W")-30)
     imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),10)
 	--[[ Window Content ]]
-    MTTSM_Win_MTTSM_Main()
+    MTTSM_Win_Main()
 	MTTSM_Win_Settings()
     imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),10)
     MTTSM_Win_Notifications()
