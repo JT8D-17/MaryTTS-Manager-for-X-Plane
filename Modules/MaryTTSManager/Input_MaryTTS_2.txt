@@ -1,0 +1,6 @@
+dfki-obadiah-hsmm::Hello, I am dfki-obadiah-hsmm, a TTS voice.
+dfki-poppy-hsmm::Hello, I am dfki-poppy-hsmm, a TTS voice.
+dfki-pavoque-neutral-hsmm::Hello, I am dfki-pavoque-neutral-hsmm, a TTS voice.
+bits3-hsmm::Hello, I am bits3-hsmm, a TTS voice.
+dfki-spike-hsmm::Hello, I am dfki-spike-hsmm, a TTS voice.
+dfki-prudence-hsmm::Hello, I am dfki-prudence-hsmm, a TTS voice.

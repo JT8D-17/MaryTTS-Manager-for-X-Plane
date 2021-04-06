@@ -38,7 +38,7 @@ local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
 local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
 local MTTSM_Log = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
-local MTTSM_OutputWav = MTTSM_BaseFolder.."transmission.wav"
+local MTTSM_OutputWav = nil
 local MTTSM_Process = nil
 local MTTSM_Status = "Stopped"
 local MTTSM_InterfaceSelected = MTTSM_InterfaceContainer[1][1] --"Select an interface"
@@ -102,15 +102,6 @@ end
 --[[
 PLAYBACK
 ]]
---[[ Speaks an input string with the input voice ]]
-local function MTTSM_ProcessString(voice,inputstring)
-    os.remove(MTTSM_OutputWav)
-    local temp = inputstring:gsub(" ","%%20")
-    --print(inputstring.."\n"..temp)
-    os.execute('curl -o '..MTTSM_OutputWav..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..voice..'&INPUT_TEXT="'..temp)
-    --os.execute('curl -o '..MTTSM_OutputWav..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..voice..'&INPUT_TEXT="'..temp)
-    --os.execute('curl -o '..MTTSM_OutputWav..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..voice..'&INPUT_TEXT="'..temp)
-end
 --[[ Writes to the selected output file ]]
 local function MTTSM_OutputToFile(interface,voice,string)
     --print(voice.." says: "..string)
@@ -133,30 +124,48 @@ local function MTTSM_InputFromFile(interface)
         for line in textfile:lines() do     -- Fill process queue
             local splitline = MTTSM_SplitString(line,"([^"..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4).."]+)")
             MTTSM_ServerProcessQueue[#MTTSM_ServerProcessQueue+1] = splitline
+            MTTSM_ServerProcessQueue[#MTTSM_ServerProcessQueue][#MTTSM_ServerProcessQueue[#MTTSM_ServerProcessQueue]+1] = MTTSM_PathConstructor(interface,"Output","Full")
         end
         textfile:close()
         os.remove(MTTSM_PathConstructor(interface,"Input","Full"))
         print("MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue.." (+"..(#MTTSM_ServerProcessQueue-oldqueuesize)..")")
     end
-    -- Send to server
-
-end
---[[ ]]
-local function MTTSM_SendToServer(inputdata)
-    if #inputdata > 0 then
-        print(table.concat(inputdata[1]," says "))
-        -- send to server here
-        table.remove(inputdata,1)
+    -- Sends the first item from the process queue to the MaryTTS server
+    if #MTTSM_ServerProcessQueue > 0 then
+        local f = io.open(MTTSM_ServerProcessQueue[1][3],"r") -- Check for presence of output WAV
+        if f == nil then
+            -- Assigns a a voice from the voice mapping or randomly
+            if MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") > 1 then
+                for j=2,MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") do
+                    if MTTSM_ServerProcessQueue[1][1] == MTTSM_SubTableValGet(inputtable[tabindex][2],"Voicemap",j,1) then MTTSM_ServerProcessQueue[1][1] = MTTSM_SubTableValGet(inputtable[tabindex][2],"Voicemap",j,2) -- Voice mapping found
+                    elseif j == MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") then
+                        MTTSM_ServerProcessQueue[1][1] = MTTSM_VoiceList[math.random(1,#MTTSM_VoiceList)]
+                    end
+                end
+            end
+            print(MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
+            --
+            local temp = MTTSM_ServerProcessQueue[1][2]:gsub(" ","%%20")
+            os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            --
+            table.remove(MTTSM_ServerProcessQueue,1)
+            print("MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue)
+        end
     end
-end
---[[ Plays the output Wav file ]]
-local function MTTSM_PlayWav()
-    local f=io.open(MTTSM_OutputWav,"r")
-    if f ~= nil then
-        io.close(f)
-        local OutputWav = load_WAV_file(MTTSM_OutputWav)
-        play_sound(OutputWav)
-        os.remove(MTTSM_OutputWav)
+    -- If playback is set to FWL, play WAV file there
+    if MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4) == "FlyWithLua" then
+        local out_wav = MTTSM_PathConstructor(interface,"Output","Full")
+        local f = io.open(out_wav,"r") -- Check for presence of output WAV
+        if f ~= nil then
+            io.close(f)
+            if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
+            print(OutputWav)
+            set_sound_gain(OutputWav,1.5)
+            play_sound(OutputWav)
+            os.remove(out_wav)
+        end
     end
 end
 --[[
@@ -176,9 +185,8 @@ function MTTSM_Watchdog()
     if MTTSM_Status == "Starting" then MTTSM_CheckServerLog("Starting") end
     if MTTSM_Status == "Stopping" then MTTSM_CheckServerLog("Stopping") end
     if MTTSM_Process ~= nil and MTTSM_Status == "Stopped" then MTTSM_CheckServerLog("Starting") MTTSM_Log_Write("MaryTTS Server: Already running (PID: "..MTTSM_Process..")") end
-    --MTTSM_PlayWav()
     -- Stuff to do when the server is up and running
-    if MTTSM_Process ~= nil and MTTSM_Status == "Running" then
+    if MTTSM_Process ~= nil and MTTSM_Status == "Running" and MTTSM_InterfaceEditMode == 0 then
         for i=1,#MTTSM_ActiveInterfaces do -- Iterate through active interfaces
             for j=1,#MTTSM_InterfaceContainer do
                 if MTTSM_InterfaceContainer[j][2][1][1] == MTTSM_ActiveInterfaces[i] then -- Match active interface to subtable index in container
@@ -441,7 +449,7 @@ local function MTTSM_Testing(inputtable)
         --imgui.SameLine() imgui.Dummy((MTTSM_SettingsValGet("Window_W")-395),20) imgui.SameLine()
         --imgui.Dummy(MTTSM_SettingsValGet("Window_W")-180,5)
         imgui.Dummy(19,20) imgui.SameLine()
-        if imgui.Button("Speak",MTTSM_SettingsValGet("Window_W")-59,20) then MTTSM_OutputToFile(MTTSM_InterfaceContainer[1][1],MTTSM_VoiceSelected,MTTSM_TestString) --[[MTTSM_ProcessString(MTTSM_VoiceSelected,MTTSM_TestString)]] end
+        if imgui.Button("Speak",MTTSM_SettingsValGet("Window_W")-59,20) then MTTSM_OutputToFile(MTTSM_InterfaceContainer[1][1],MTTSM_VoiceSelected,MTTSM_TestString) end
     else
         imgui.Dummy(19,20) imgui.SameLine()
         imgui.TextUnformatted("MaryTTS server is not running; testing area disabled!")
@@ -516,7 +524,8 @@ function MTTSM_Win_Main()
         -- Server status display
         imgui.Dummy(19,20) imgui.SameLine()
         imgui.TextUnformatted("MaryTTS Server Status: "..MTTSM_Status)
-        if MTTSM_Process ~= nil then imgui.SameLine() imgui.TextUnformatted("(Process ID: "..MTTSM_Process..")") end
+        if MTTSM_Process ~= nil then imgui.SameLine() imgui.TextUnformatted("(PID: "..MTTSM_Process..")")
+        if MTTSM_InterfaceEditMode == 1 then imgui.SameLine() imgui.TextUnformatted(", watchdog disabled!") end end
         --imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),10)
         -- Server control button
         imgui.Dummy(19,20) imgui.SameLine()

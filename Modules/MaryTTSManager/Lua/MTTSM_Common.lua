@@ -12,6 +12,7 @@ VARIABLES (local to this module)
 MTTSM_PageDB = {}                 -- Subpage database, generated at initialization
 local MTTSM_PageTitle = "DEBUG: FileIO"   -- Title of the page
 local MTTSM_PageInitStatus = 0            -- Has the window been initialized?
+local MTTSM_SaveFileDelimiter = "#"       -- The delimiter between value and type in the save file
 
 local TestArray = {
 {"TEST"},
@@ -177,11 +178,11 @@ function MTTSM_FileWrite(inputtable,outputfile,log)
     for j=2,#inputtable do
         file:write(inputtable[1][1]..",")
         for k=1,#inputtable[j] do
-            if type(inputtable[j][k]) == "string" or type(inputtable[j][k]) == "number" then file:write(inputtable[j][k]..":"..type(inputtable[j][k])) end
+            if type(inputtable[j][k]) == "string" or type(inputtable[j][k]) == "number" then file:write(inputtable[j][k]..MTTSM_SaveFileDelimiter..type(inputtable[j][k])) end
             if type(inputtable[j][k]) == "table" then
                 file:write("{")
                 for l=1,#inputtable[j][k] do
-                    file:write(inputtable[j][k][l]..":"..type(inputtable[j][k][l]))
+                    file:write(inputtable[j][k][l]..MTTSM_SaveFileDelimiter..type(inputtable[j][k][l]))
                     if l < #inputtable[j][k] then file:write(";") end
                 end
                 file:write("}")
@@ -240,14 +241,14 @@ function MTTSM_FileRead(inputfile,outputtable)
                        local splittable = MTTSM_SplitString(splitline[j],"{(.*)}") -- Strip brackets
                        local splittableelements = MTTSM_SplitString(splittable[1],"([^;]+)") -- Split at ;
                        for k=1,#splittableelements do
-                          local substringtemp = MTTSM_SplitString(splittableelements[k],"([^:]+)")
+                          local substringtemp = MTTSM_SplitString(splittableelements[k],"([^"..MTTSM_SaveFileDelimiter.."]+)")
                           if substringtemp[2] == "string" then tempsubtable[k] = tostring(substringtemp[1]) end
                           if substringtemp[2] == "number" then tempsubtable[k] = tonumber(substringtemp[1]) end
                        end
                        temptable[j-1] = tempsubtable
                        --print("Table: "..table.concat(temptable[j-1],"-"))
                    else -- Handle regular variables
-                        local substringtemp = MTTSM_SplitString(splitline[j],"([^:]+)")
+                        local substringtemp = MTTSM_SplitString(splitline[j],"([^"..MTTSM_SaveFileDelimiter.."]+)")
                         if substringtemp[2] == "string" then substringtemp[1] = tostring(substringtemp[1]) end
                         if substringtemp[2] == "number" then substringtemp[1] = tonumber(substringtemp[1]) end
                         temptable[j-1] = substringtemp[1]
