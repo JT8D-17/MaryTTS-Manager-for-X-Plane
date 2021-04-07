@@ -38,7 +38,6 @@ local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
 local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
 local MTTSM_Log = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
-local MTTSM_OutputWav = nil
 local MTTSM_Process = nil
 local MTTSM_Status = "Stopped"
 local MTTSM_InterfaceSelected = MTTSM_InterfaceContainer[1][1] --"Select an interface"
@@ -49,6 +48,7 @@ local MTTSM_FilterList = {"None","JetPilot"}
 local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
 local MTTSM_ServerProcessQueue = { }
+local MTTSM_PlaybackTimer_Ref = {os.time(),0}
 --[[
 
 FUNCTIONS
@@ -102,6 +102,13 @@ end
 --[[
 PLAYBACK
 ]]
+--[[ Determines the filesize ]]
+local function MTTS_GetFileSize(file)
+        local current = file:seek()      -- get current position
+        local size = file:seek("end")    -- get file size
+        file:seek("set", current)        -- restore position
+        return size
+end
 --[[ Writes to the selected output file ]]
 local function MTTSM_OutputToFile(interface,voice,string)
     --print(voice.." says: "..string)
@@ -159,12 +166,22 @@ local function MTTSM_InputFromFile(interface)
         local out_wav = MTTSM_PathConstructor(interface,"Output","Full")
         local f = io.open(out_wav,"r") -- Check for presence of output WAV
         if f ~= nil then
+            local fsize = MTTS_GetFileSize(f)
+            --print("Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")
             io.close(f)
-            if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
-            print(OutputWav)
-            set_sound_gain(OutputWav,1.5)
-            play_sound(OutputWav)
-            os.remove(out_wav)
+            -- Timer:
+            if MTTSM_PlaybackTimer_Ref[2] == 1 then -- Unlock delay before first playback
+                if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/32000)) then
+                    print("Playing "..out_wav)
+                    if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
+                    set_sound_gain(OutputWav,1.5)
+                    play_sound(OutputWav)
+                    os.remove(out_wav)
+                    MTTSM_PlaybackTimer_Ref[1] = os.time()
+                end
+            else
+                MTTSM_PlaybackTimer_Ref[2] = 1
+            end
         end
     end
 end
@@ -518,9 +535,6 @@ function MTTSM_Win_Main()
         MTTSM_InterfaceStatus(MTTSM_InterfaceContainer)
         -- Testing area
         if MTTSM_InterfaceSelected == MTTSM_InterfaceContainer[1][1] then MTTSM_Testing(MTTSM_VoiceList) end
-        --[[ if imgui.Button("Check MaryTTS Server status",(MTTSM_SettingsValGet("Window_W")-30),20) then
-            MTTSM_CheckProc()
-        end ]]
         -- Server status display
         imgui.Dummy(19,20) imgui.SameLine()
         imgui.TextUnformatted("MaryTTS Server Status: "..MTTSM_Status)
