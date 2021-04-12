@@ -38,17 +38,22 @@ local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
 local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
 local MTTSM_Log = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
+local MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle) -- Insiial MaryTTS server process handle
 local MTTSM_Process = nil
 local MTTSM_Status = "Stopped"
 local MTTSM_InterfaceSelected = MTTSM_InterfaceContainer[1][1] --"Select an interface"
 local MTTSM_InterfaceEditMode = 0
 local MTTSM_VoiceList = { }
 local MTTSM_VoiceSelected = " "
+local MTTSM_PrevActor = {"None","None"}  -- The actor of the previous voice communication
 local MTTSM_FilterList = {"None","JetPilot"}
 local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
 local MTTSM_ServerProcessQueue = { }
 local MTTSM_PlaybackTimer_Ref = {os.time(),0}
+-- Prime random number generator
+math.randomseed(os.time())
+math.random(); math.random(); math.random()
 --[[
 
 FUNCTIONS
@@ -117,7 +122,7 @@ local function MTTSM_OutputToFile(interface,voice,string)
     local textfile = io.open(MTTSM_PathConstructor(interface,"Input","Full"),"a")
     if textfile then
         textfile:write(voice,MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4),string,"\n")
-        --print("Writing \""..voice..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4)..string.."\\n\" to "..MTTSM_PathConstructor(interface,"Input","Full"))
+        --print("MTTSM: Writing \""..voice..MTTSM_SubTableValGet(inputtable[tabindex][2],"Input",0,4)..string.."\\n\" to "..MTTSM_PathConstructor(interface,"Input","Full"))
         textfile:close()
     end
 end
@@ -135,7 +140,7 @@ local function MTTSM_InputFromFile(interface)
         end
         textfile:close()
         os.remove(MTTSM_PathConstructor(interface,"Input","Full"))
-        print("MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue.." (+"..(#MTTSM_ServerProcessQueue-oldqueuesize)..")")
+        --print("MTTSM: MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue.." (+"..(#MTTSM_ServerProcessQueue-oldqueuesize)..")")
     end
     -- Sends the first item from the process queue to the MaryTTS server
     if #MTTSM_ServerProcessQueue > 0 then
@@ -145,12 +150,26 @@ local function MTTSM_InputFromFile(interface)
             if MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") > 1 then
                 for j=2,MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") do
                     if MTTSM_ServerProcessQueue[1][1] == MTTSM_SubTableValGet(inputtable[tabindex][2],"Voicemap",j,1) then MTTSM_ServerProcessQueue[1][1] = MTTSM_SubTableValGet(inputtable[tabindex][2],"Voicemap",j,2) -- Voice mapping found
-                    elseif j == MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") then
-                        MTTSM_ServerProcessQueue[1][1] = MTTSM_VoiceList[math.random(1,#MTTSM_VoiceList)]
+                    elseif j == MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") then -- Voice mapping not found
+                        if MTTSM_ServerProcessQueue[1][1] ~= MTTSM_PrevActor[1] then -- Actor different to previous one
+                            local newactorname = MTTSM_ServerProcessQueue[1][1]
+                            MTTSM_ServerProcessQueue[1][1] = MTTSM_VoiceList[math.random(1,#MTTSM_VoiceList)]
+                            for k=2,MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") do
+                                if MTTSM_ServerProcessQueue[1][1] == MTTSM_SubTableValGet(inputtable[tabindex][2],"Voicemap",k,1) then 
+                                    MTTSM_ServerProcessQueue[1][1] = MTTSM_VoiceList[math.random(1,#MTTSM_VoiceList)] 
+                                    MTTSM_Log_Write("MTTSM: Voice already mapped. Retrying...")
+                                end
+                            end
+                            MTTSM_Log_Write("Actor Change (Random Voice): "..MTTSM_PrevActor[1].." ("..MTTSM_PrevActor[2]..") -> "..newactorname.." ("..MTTSM_ServerProcessQueue[1][1]..")")
+                            MTTSM_PrevActor[1] = newactorname                   -- Update old actor table: Name
+                            MTTSM_PrevActor[2] = MTTSM_ServerProcessQueue[1][1] -- Update old actor table: Voice
+                        else
+                            MTTSM_ServerProcessQueue[1][1] = MTTSM_PrevActor[2]
+                        end
                     end
                 end
             end
-            print(MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
+            MTTSM_Log_Write("MTTSM: "..MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
             --
             local temp = MTTSM_ServerProcessQueue[1][2]:gsub(" ","%%20")
             os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
@@ -158,7 +177,7 @@ local function MTTSM_InputFromFile(interface)
             --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
             --
             table.remove(MTTSM_ServerProcessQueue,1)
-            print("MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue)
+            --print("MTTSM: MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue)
         end
     end
     -- If playback is set to FWL, play WAV file there
@@ -167,12 +186,12 @@ local function MTTSM_InputFromFile(interface)
         local f = io.open(out_wav,"r") -- Check for presence of output WAV
         if f ~= nil then
             local fsize = MTTS_GetFileSize(f)
-            --print("Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")
+            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")
             io.close(f)
             -- Timer:
             if MTTSM_PlaybackTimer_Ref[2] == 1 then -- Unlock delay before first playback
                 if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/32000)) then
-                    print("Playing "..out_wav)
+                    print("MTTSM: Playing "..out_wav)
                     if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
                     set_sound_gain(OutputWav,1.5)
                     play_sound(OutputWav)
@@ -190,8 +209,8 @@ PROCESS
 ]]
 --[[ Look for MaryTTS' process ]]
 local function MTTSM_CheckProc()
-    local handle = io.popen('pgrep -f '..MTTSM_Handle)
-    MTTSM_Process = tonumber(handle:read("*a"))
+    MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle)
+    MTTSM_Process = tonumber(MTTSM_ProcHandle:read("*a"))
     --print(tostring(MTTSM_Process))
 end
 --[[ MaryTTS watchdog - runs every second in MTTSM_Main_1sec() in MaryTTSManager.lua ]]
