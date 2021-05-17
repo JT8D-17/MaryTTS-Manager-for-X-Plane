@@ -33,12 +33,22 @@ local MTTSM_InterfaceData = {
 {"Voicemap"},
 }
 local MTTSM_PlaybackAgent = {"FlyWithLua","Plugin"}
-local MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-11.0.7+10-jre/bin/"
+local MTTSM_JREFolder
+if SYSTEM == "IBM" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Windows/jdk-11.0.7+10-jre/bin/"
+elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-11.0.7+10-jre/bin/"
+elseif SYSTEM == "APL" then 
+else return end
 local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
 local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
 local MTTSM_Log = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
-local MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle) -- Insiial MaryTTS server process handle
+local MTTSM_ProcHandle -- Initial MaryTTS server process handle
+if SYSTEM == "IBM" then 
+	MTTSM_ProcHandle = io.popen('start /b "TempWin" tasklist /FI "IMAGENAME eq java*" /FO CSV /NH')
+local temp = string.match(MTTSM_ProcHandle:read("*a"),"exe\",\"(%d+)\",\"")
+elseif SYSTEM == "LIN" then MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle)
+elseif SYSTEM == "APL" then 
+else return end
 local MTTSM_Process = nil
 local MTTSM_Status = "Stopped"
 local MTTSM_InterfaceSelected = MTTSM_InterfaceContainer[1][1] --"Select an interface"
@@ -77,13 +87,27 @@ end
 --[[
 SERVER MANAGEMENT
 ]]
+--[[ Look for MaryTTS' process ]]
+local function MTTSM_CheckProc()
+    if SYSTEM == "IBM" then 
+		MTTSM_ProcHandle = io.popen('start /b "TempWin" tasklist /FI "IMAGENAME eq java*" /FO CSV /NH')
+		MTTSM_Process = tonumber(string.match(MTTSM_ProcHandle:read("*a"),"exe\",\"(%d+)\",\""))
+    elseif SYSTEM == "LIN" then 
+		MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle)
+		MTTSM_Process = tonumber(MTTSM_ProcHandle:read("*a"))
+    elseif SYSTEM == "APL" then 
+    else return end
+    --print(tostring(MTTSM_Process))
+end
 --[[ Checks the MaryTTS server's log file for startup and shutdown indicatons ]]
 local function MTTSM_CheckServerLog(mode)
    local file = io.open(MTTSM_ServerLog,"r")
    if file then
         for line in file:lines() do
-            if mode == "Starting" and string.match(line,"marytts.server Waiting for client to connect on port") then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") end
-            if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") end
+            if mode == "Starting" and string.match(line,"marytts.server Waiting for client to connect on port") then MTTSM_CheckProc() MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") end
+            if mode == "Stopping" then 
+				if string.match(line,"marytts.main Shutdown complete.") or MTTSM_Process == nil then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") break end
+			end
         end
    end
 end
@@ -91,7 +115,10 @@ end
 local function MTTSM_Server_Start()
     os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS Server: Deleted old server log file")
     if MTTSM_Status == "Stopped" then
-        os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\" &')
+        if SYSTEM == "IBM" then os.execute('start /b \"MaryTTSConsoleWindow\" \"'..MTTSM_JREFolder..'\\java.exe\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'\\lib\\*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\"')
+        elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\" &')
+		elseif SYSTEM == "APL" then 
+		else return end        
         MTTSM_Notification("MaryTTS Server: Starting","Advisory") MTTSM_Log_Write("MaryTTS Server: Starting")
         MTTSM_Status = "Starting"
     end
@@ -99,7 +126,10 @@ end
 --[[ Stops the MaryTTS server ]]
 local function MTTSM_Server_Stop()
     if MTTSM_Status == "Running" then
-        os.execute('kill '..MTTSM_Process)
+		if SYSTEM == "IBM" then os.execute('Taskkill /PID '..MTTSM_Process..' /F')
+        elseif SYSTEM == "LIN" then os.execute('kill '..MTTSM_Process)
+ 		elseif SYSTEM == "APL" then 
+		else return end        
         MTTSM_Notification("MaryTTS Server: Stopping","Advisory") MTTSM_Log_Write("MaryTTS Server: Stopping")
         MTTSM_Status = "Stopping"
     end
@@ -172,7 +202,10 @@ local function MTTSM_InputFromFile(interface)
             MTTSM_Log_Write("MTTSM: "..MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
             --
             local temp = MTTSM_ServerProcessQueue[1][2]:gsub(" ","%%20")
-            os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            if SYSTEM == "IBM" then os.execute('start /b \"CurlWin\" curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://localhost:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            elseif SYSTEM == "LIN" then os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+			elseif SYSTEM == "APL" then 
+			else return end                    
             --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
             --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
             --
@@ -186,7 +219,7 @@ local function MTTSM_InputFromFile(interface)
         local f = io.open(out_wav,"r") -- Check for presence of output WAV
         if f ~= nil then
             local fsize = MTTS_GetFileSize(f)
-            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")
+            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")e5rzwertzw
             io.close(f)
             -- Timer:
             if MTTSM_PlaybackTimer_Ref[2] == 1 then -- Unlock delay before first playback
@@ -207,16 +240,10 @@ end
 --[[
 PROCESS
 ]]
---[[ Look for MaryTTS' process ]]
-local function MTTSM_CheckProc()
-    MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle)
-    MTTSM_Process = tonumber(MTTSM_ProcHandle:read("*a"))
-    --print(tostring(MTTSM_Process))
-end
 --[[ MaryTTS watchdog - runs every second in MTTSM_Main_1sec() in MaryTTSManager.lua ]]
 function MTTSM_Watchdog()
     -- Process checking function
-    MTTSM_CheckProc()
+    --MTTSM_CheckProc()
     -- Status checking
     if MTTSM_Status == "Starting" then MTTSM_CheckServerLog("Starting") end
     if MTTSM_Status == "Stopping" then MTTSM_CheckServerLog("Stopping") end
@@ -561,6 +588,10 @@ function MTTSM_Win_Main()
         if MTTSM_InterfaceEditMode == 1 then imgui.SameLine() imgui.TextUnformatted(", watchdog disabled!") end end
         --imgui.Dummy((MTTSM_SettingsValGet("Window_W")-30),10)
         -- Server control button
+        imgui.Dummy(19,20) imgui.SameLine()
+        if imgui.Button("Check MaryTTS' Process",(MTTSM_SettingsValGet("Window_W")-59),20) then
+            MTTSM_CheckProc()
+        end
         imgui.Dummy(19,20) imgui.SameLine()
         if MTTSM_Process == nil and imgui.Button("Start MaryTTS Server",(MTTSM_SettingsValGet("Window_W")-59),20) then
             MTTSM_Server_Start()
