@@ -223,12 +223,12 @@ local function MTTSM_InputFromFile(interface)
         local f = io.open(out_wav,"r") -- Check for presence of output WAV
         if f ~= nil then
             local fsize = MTTS_GetFileSize(f)
-            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")e5rzwertzw
+            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")
             io.close(f)
             -- Timer:
             if MTTSM_PlaybackTimer_Ref[2] == 1 then -- Unlock delay before first playback
                 if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/32000)) then
-                    print("MTTSM: Playing "..out_wav)
+                    MTTSM_Log_Write("MTTSM: Playing back "..out_wav.." with "..MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4))
                     if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
                     set_sound_gain(OutputWav,1.5)
                     play_sound(OutputWav)
@@ -537,11 +537,11 @@ function MTTSM_ModuleInit_Main()
     if MTTSM_SettingsValGet("AutoLoad") == 1 then 
         --MTTSM_Log_Write(MTTSM_PageTitle..": Autoloading values from "..MTTSM_Module_SaveFile) 
         --MTTSM_FileRead(MTTSM_Module_SaveFile,MTTSM_InterfaceData)
-        
     end
     MTTSM_InterfaceLoad(MTTSM_InterfFolder,MTTSM_InterfaceContainer,MTTSM_InterfaceData) 
     MTTSM_GetFileList(MTTSM_MaryFolder.."/installed",MTTSM_VoiceList,"voice")
     MTTSM_FindActiveInterfaces(MTTSM_InterfaceContainer)
+    MTTSM_CheckProc()
 end
 --[[ 
 
