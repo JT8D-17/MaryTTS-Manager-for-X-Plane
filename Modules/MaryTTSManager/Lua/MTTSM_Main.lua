@@ -50,7 +50,7 @@ elseif SYSTEM == "LIN" then MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handl
 elseif SYSTEM == "APL" then 
 else return end
 local MTTSM_Process = nil
-local MTTSM_Status = "Stopped"
+MTTSM_Status = "Stopped" -- Global to be read by the menu system
 local MTTSM_InterfaceSelected = MTTSM_InterfaceContainer[1][1] --"Select an interface"
 local MTTSM_InterfaceEditMode = 0
 local MTTSM_VoiceList = { }
@@ -106,19 +106,19 @@ local function MTTSM_CheckServerLog(mode)
         for line in file:lines() do
             if mode == "Starting" and string.match(line,"marytts.server Waiting for client to connect on port") then
                 MTTSM_CheckProc()
-                if MTTSM_Process ~= nil then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") end
+                if MTTSM_Process ~= nil then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") MTTSM_Menu_Watchdog(5) end
             end
             if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then
                 MTTSM_CheckProc()
-				if MTTSM_Process == nil then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") break end
+				if MTTSM_Process == nil then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") MTTSM_Menu_Watchdog(5) break end
 			end
         end
    end
 end
 --[[ Starts the MaryTTS server ]]
-local function MTTSM_Server_Start()
-    os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS Server: Deleted old server log file")
+function MTTSM_Server_Start()
     if MTTSM_Status == "Stopped" then
+        os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS Server: Deleted old server log file")
         if SYSTEM == "IBM" then os.execute('start /b \"MaryTTSConsoleWindow\" \"'..MTTSM_JREFolder..'\\java.exe\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'\\lib\\*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\"')
         elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\" &')
 		elseif SYSTEM == "APL" then 
@@ -128,7 +128,7 @@ local function MTTSM_Server_Start()
     end
 end
 --[[ Stops the MaryTTS server ]]
-local function MTTSM_Server_Stop()
+function MTTSM_Server_Stop()
     if MTTSM_Status == "Running" then
 		if SYSTEM == "IBM" then os.execute('Taskkill /PID '..MTTSM_Process..' /F')
         elseif SYSTEM == "LIN" then os.execute('kill '..MTTSM_Process)

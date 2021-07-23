@@ -10,7 +10,7 @@ MENU LABELS, ITEMS AND ACTIONS
 
 ]]
 local Menu_Name = "MaryTTS Manager" -- Menu title
-local Menu_Items = {" Window","[Separator]","Autoload Settings"}  -- Menu entries, index starts at 1
+local Menu_Items = {" Window","[Separator]","Autoload Settings","[Separator]","MaryTTS Server"}  -- Menu entries, index starts at 1
 --[[ Menu item callbacks ]]
 local function Menu_Callback(itemref)
     if itemref == Menu_Items[1] then 
@@ -22,6 +22,11 @@ local function Menu_Callback(itemref)
         if MTTSM_SettingsValGet("AutoLoad") == 0 then MTTSM_SettingsValSet("AutoLoad",1) MTTSM_SettingsFileWrite()
         elseif MTTSM_SettingsValGet("AutoLoad") == 1 then MTTSM_SettingsValSet("AutoLoad",0) MTTSM_SettingsFileWrite() end
         MTTSM_Menu_Watchdog(3)
+    end
+    if itemref == Menu_Items[5] then
+        if MTTSM_Status == "Stopped" then MTTSM_Server_Start()
+        elseif MTTSM_Status == "Running" then MTTSM_Server_Stop() end
+        MTTSM_Menu_Watchdog(5)
     end
 end
 --[[
@@ -55,6 +60,7 @@ function MTTSM_Menu_Init()
         end
         MTTSM_Menu_Watchdog(1)        -- Watchdog for menu item 1
         MTTSM_Menu_Watchdog(3)        -- Watchdog for menu item 3
+        MTTSM_Menu_Watchdog(5)        -- Watchdog for menu item 3
         MTTSM_Log_Write("INIT: "..Menu_Name.." menu initialized!")
     end
 end
@@ -91,5 +97,12 @@ function MTTSM_Menu_Watchdog(index)
     if index == 3 then
         if MTTSM_SettingsValGet("AutoLoad") == 0 then MTTSM_Menu_CheckItem(index,"Deactivate")
         elseif MTTSM_SettingsValGet("AutoLoad") == 1 then MTTSM_Menu_CheckItem(index,"Activate") end
+    end
+    if index == 5 then
+        if MTTSM_Status == "Stopped" then MTTSM_Menu_ChangeItemPrefix(index,"Start")
+        elseif MTTSM_Status == "Starting" then MTTSM_Menu_ChangeItemPrefix(index,"[Starting]")
+        elseif MTTSM_Status == "Running" then MTTSM_Menu_ChangeItemPrefix(index,"Stop")
+        elseif MTTSM_Status == "Stopping" then MTTSM_Menu_ChangeItemPrefix(index,"[Stopping]")
+        end
     end
 end
