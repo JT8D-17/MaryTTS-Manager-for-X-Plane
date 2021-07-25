@@ -10,7 +10,7 @@ MENU LABELS, ITEMS AND ACTIONS
 
 ]]
 local Menu_Name = "MaryTTS Manager" -- Menu title
-local Menu_Items = {" Window","[Separator]","Autoload Settings","[Separator]","MaryTTS Server"}  -- Menu entries, index starts at 1
+local Menu_Items = {" Window","[Separator]","Autoload Settings","[Separator]","MaryTTS Server","Autostart MaryTTS Server"}  -- Menu entries, index starts at 1
 --[[ Menu item callbacks ]]
 local function Menu_Callback(itemref)
     if itemref == Menu_Items[1] then 
@@ -27,6 +27,11 @@ local function Menu_Callback(itemref)
         if MTTSM_Status == "Stopped" then MTTSM_Server_Start()
         elseif MTTSM_Status == "Running" then MTTSM_Server_Stop() end
         MTTSM_Menu_Watchdog(5)
+    end
+    if itemref == Menu_Items[6] then
+        if MTTSM_SettingsValGet("AutostartServer") == 0 then MTTSM_SettingsValSet("AutostartServer",1) MTTSM_SettingsFileWrite() MTTSM_Log_Write("MaryTTS Server: Autostart enabled")
+        elseif MTTSM_SettingsValGet("AutostartServer") == 1 then MTTSM_SettingsValSet("AutostartServer",0) MTTSM_SettingsFileWrite() MTTSM_Log_Write("MaryTTS Server: Autostart disabled") end
+        MTTSM_Menu_Watchdog(6)
     end
 end
 --[[
@@ -60,7 +65,8 @@ function MTTSM_Menu_Init()
         end
         MTTSM_Menu_Watchdog(1)        -- Watchdog for menu item 1
         MTTSM_Menu_Watchdog(3)        -- Watchdog for menu item 3
-        MTTSM_Menu_Watchdog(5)        -- Watchdog for menu item 3
+        MTTSM_Menu_Watchdog(5)        -- Watchdog for menu item 5
+        MTTSM_Menu_Watchdog(6)        -- Watchdog for menu item 6
         MTTSM_Log_Write("INIT: "..Menu_Name.." menu initialized!")
     end
 end
@@ -104,5 +110,9 @@ function MTTSM_Menu_Watchdog(index)
         elseif MTTSM_Status == "Running" then MTTSM_Menu_ChangeItemPrefix(index,"Stop")
         elseif MTTSM_Status == "Stopping" then MTTSM_Menu_ChangeItemPrefix(index,"[Stopping]")
         end
+    end
+    if index == 6 then
+        if MTTSM_SettingsValGet("AutostartServer") == 0 then MTTSM_Menu_CheckItem(index,"Deactivate")
+        elseif MTTSM_SettingsValGet("AutostartServer") == 1 then MTTSM_Menu_CheckItem(index,"Activate") end
     end
 end

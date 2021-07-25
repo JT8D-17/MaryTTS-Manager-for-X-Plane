@@ -23,6 +23,7 @@ MTTSM_Settings = {
     {"Window_H",600},           -- Window height
     {"Window_Page",0},          -- Window page
     {"NotificationDispTime",6}, -- Notification display time
+    {"AutostartServer",0}       -- MTTSM-SPECIFIC: Auto start the server upon simulator start?
 }
 local MTTSM_PageInitStatus = 0       -- Has the module been initialized?
 --[[

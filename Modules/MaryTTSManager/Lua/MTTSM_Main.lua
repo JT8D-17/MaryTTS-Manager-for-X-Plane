@@ -542,6 +542,7 @@ function MTTSM_ModuleInit_Main()
     MTTSM_GetFileList(MTTSM_MaryFolder.."/installed",MTTSM_VoiceList,"voice")
     MTTSM_FindActiveInterfaces(MTTSM_InterfaceContainer)
     MTTSM_CheckProc()
+    if MTTSM_SettingsValGet("AutostartServer") == 1 and MTTSM_Process == nil and MTTSM_Status ~= "Running" then MTTSM_Log_Write("MaryTTS Server: Autostarting at X-Plane session start") MTTSM_Server_Start() end
 end
 --[[ 
 
