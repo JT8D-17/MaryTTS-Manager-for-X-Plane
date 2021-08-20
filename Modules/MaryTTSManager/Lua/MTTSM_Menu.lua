@@ -49,18 +49,18 @@ MENU INITALIZATION AND CLEANUP
 
 ]]
 --[[ Variables for FFI ]]
-local Menu_ID = nil
 local Menu_Pointer = MTTSM_ffi.new("const char")
 --[[ Menu initialization ]]
 function MTTSM_Menu_Init()
     if MTTSM_XPLM ~= nil then
-        Menu_ID = MTTSM_XPLM.XPLMCreateMenu(Menu_Name,nil,0, function(inMenuRef,inItemRef) Menu_Callback(inItemRef) end,MTTSM_ffi.cast("void *",Menu_Pointer))
+        MTTSM_Menu_Index = MTTSM_XPLM.XPLMAppendMenuItem(MTTSM_XPLM.XPLMFindPluginsMenu(),Menu_Name,MTTSM_ffi.cast("void *","None"),1)
+        MTTSM_Menu_ID = MTTSM_XPLM.XPLMCreateMenu(Menu_Name,MTTSM_XPLM.XPLMFindPluginsMenu(),MTTSM_Menu_Index, function(inMenuRef,inItemRef) Menu_Callback(inItemRef) end,MTTSM_ffi.cast("void *",Menu_Pointer))
         for i=1,#Menu_Items do
             if Menu_Items[i] ~= "[Separator]" then
                 Menu_Pointer = Menu_Items[i]
-                Menu_Indices[i] = MTTSM_XPLM.XPLMAppendMenuItem(Menu_ID,Menu_Items[i],MTTSM_ffi.cast("void *",Menu_Pointer),1)
+                Menu_Indices[i] = MTTSM_XPLM.XPLMAppendMenuItem(MTTSM_Menu_ID,Menu_Items[i],MTTSM_ffi.cast("void *",Menu_Pointer),1)
             else
-                MTTSM_XPLM.XPLMAppendMenuSeparator(Menu_ID)
+                MTTSM_XPLM.XPLMAppendMenuSeparator(MTTSM_Menu_ID)
             end
         end
         MTTSM_Menu_Watchdog(1)        -- Watchdog for menu item 1
@@ -72,8 +72,9 @@ function MTTSM_Menu_Init()
 end
 --[[ Menu cleanup upon script reload or session exit ]]
 function MTTSM_Menu_CleanUp()
-   MTTSM_XPLM.XPLMClearAllMenuItems(MTTSM_XPLM.XPLMFindPluginsMenu())
-   --MTTSM_XPLM.XPLMDestroyMenu(Menu_ID)
+   MTTSM_XPLM.XPLMClearAllMenuItems(MTTSM_Menu_ID)
+   MTTSM_XPLM.XPLMDestroyMenu(MTTSM_Menu_ID)
+   MTTSM_XPLM.XPLMRemoveMenuItem(MTTSM_XPLM.XPLMFindPluginsMenu(),MTTSM_Menu_Index)
 end
 --[[
 
@@ -82,16 +83,16 @@ MENU MANIPULATION WRAPPERS
 ]]
 --[[ Menu item name change ]]
 local function MTTSM_Menu_ChangeItemPrefix(index,prefix)
-    MTTSM_XPLM.XPLMSetMenuItemName(Menu_ID,index-1,prefix.." "..Menu_Items[index],1)
+    MTTSM_XPLM.XPLMSetMenuItemName(MTTSM_Menu_ID,index-1,prefix.." "..Menu_Items[index],1)
 end
 --[[ Menu item check status change ]]
 function MTTSM_Menu_CheckItem(index,state)
     index = index - 1
     local out = MTTSM_ffi.new("XPLMMenuCheck[1]")
-    MTTSM_XPLM.XPLMCheckMenuItemState(Menu_ID,index-1,MTTSM_ffi.cast("XPLMMenuCheck *",out))
-    if tonumber(out[0]) == 0 then MTTSM_XPLM.XPLMCheckMenuItem(Menu_ID,index,1) end
-    if state == "Activate" and tonumber(out[0]) ~= 2 then MTTSM_XPLM.XPLMCheckMenuItem(Menu_ID,index,2)
-    elseif state == "Deactivate" and tonumber(out[0]) ~= 1 then MTTSM_XPLM.XPLMCheckMenuItem(Menu_ID,index,1)
+    MTTSM_XPLM.XPLMCheckMenuItemState(MTTSM_Menu_ID,index-1,MTTSM_ffi.cast("XPLMMenuCheck *",out))
+    if tonumber(out[0]) == 0 then MTTSM_XPLM.XPLMCheckMenuItem(MTTSM_Menu_ID,index,1) end
+    if state == "Activate" and tonumber(out[0]) ~= 2 then MTTSM_XPLM.XPLMCheckMenuItem(MTTSM_Menu_ID,index,2)
+    elseif state == "Deactivate" and tonumber(out[0]) ~= 1 then MTTSM_XPLM.XPLMCheckMenuItem(MTTSM_Menu_ID,index,1)
     end
 end
 --[[ Watchdog to track window state changes ]]

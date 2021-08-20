@@ -34,6 +34,8 @@ local MTTSM_PageInitStatus = 0        -- Has the window been initialized?
 MTTSM_Check_Autoload = false          -- Enables check of the autoloading condition
 MTTSM_Window_Pos={0,0}                -- Window position x,y
 MTTSM_ImguiColors={0x33FFAE00,0xBBFFAE00,0xFFC8C8C8,0xFF0000FF,0xFF19CF17,0xFFB6CDBA,0xFF40aee5} -- Imgui: Control elements passive, control elements active, text, negative, positive, neutral, caution
+MTTSM_Menu_ID = nil                   -- ID of the main MTTSM menu
+MTTSM_Menu_Index = nil                -- Index of the MTTSM menu in the plugins menu
 --[[
 
 INITIALIZATION
