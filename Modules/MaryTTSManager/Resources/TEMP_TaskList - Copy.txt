@@ -1,2 +1,0 @@
-dfki-spike-hsmm::Hello, this is a test.
-dfki-obadiah-hsmm::I am testing, too!

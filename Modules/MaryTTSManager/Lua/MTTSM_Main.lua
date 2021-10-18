@@ -43,12 +43,6 @@ local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
 local MTTSM_Log = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
 local MTTSM_ProcHandle -- Initial MaryTTS server process handle
-if SYSTEM == "IBM" then 
-	MTTSM_ProcHandle = io.popen('start /b "TempWin" tasklist /FI "IMAGENAME eq java*" /FO CSV /NH')
-local temp = string.match(MTTSM_ProcHandle:read("*a"),"exe\",\"(%d+)\",\"")
-elseif SYSTEM == "LIN" then MTTSM_ProcHandle = io.popen('pgrep -f '..MTTSM_Handle)
-elseif SYSTEM == "APL" then 
-else return end
 local MTTSM_Process = nil
 MTTSM_Status = "Stopped" -- Global to be read by the menu system
 local MTTSM_InterfaceSelected = MTTSM_InterfaceContainer[1][1] --"Select an interface"
@@ -57,6 +51,7 @@ local MTTSM_VoiceList = { }
 local MTTSM_VoiceSelected = " "
 local MTTSM_PrevActor = {"None","None"}  -- The actor of the previous voice communication
 local MTTSM_FilterList = {"None","JetPilot"}
+local MTTSM_VolumeCorrection = {{"dfki-obadiah-hsmm",1.09},{"dfki-poppy-hsmm",2.0},{"dfki-prudence-hsmm",1.3},{"dfki-spike-hsmm",1.075}}
 local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
 local MTTSM_ServerProcessQueue = { }
@@ -99,6 +94,7 @@ local function MTTSM_CheckProc()
     else return end
     --print(tostring(MTTSM_Process))
 end
+MTTSM_CheckProc() -- Run process detection once at script start
 --[[ Checks the MaryTTS server's log file for startup and shutdown indicatons ]]
 local function MTTSM_CheckServerLog(mode)
    local file = io.open(MTTSM_ServerLog,"r")
@@ -119,7 +115,8 @@ end
 function MTTSM_Server_Start()
     if MTTSM_Status == "Stopped" then
         os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS Server: Deleted old server log file")
-        if SYSTEM == "IBM" then os.execute('start /b \"MaryTTSConsoleWindow\" \"'..MTTSM_JREFolder..'\\java.exe\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'\\lib\\*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\"')
+        if SYSTEM == "IBM" then 
+        os.execute('powershell.exe -file \"'..MTTSM_BaseFolder..'\\Start_MaryTTS_Win.ps1\"') -- Unceremoniously has to start from a PowerShell script because Windows SUCKS
         elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\" &')
 		elseif SYSTEM == "APL" then 
 		else return end        
@@ -160,7 +157,18 @@ local function MTTSM_OutputToFile(interface,voice,string)
         textfile:close()
     end
 end
--- [[ Reads the selected input file ]]
+--[[ Corrects the volume of the selected voice ]]
+local function MTTSM_VoiceVolumeCorrection(input,table)
+	local output = 1.0 
+	for i=1,#table do
+		if input == table[i][1] then 
+			output = table[i][2]
+			--print("Volume level of "..input.." set to "..output)
+		end
+	end
+	return output
+end
+--[[ Reads the selected input file ]]
 local function MTTSM_InputFromFile(interface)
     local inputtable = MTTSM_InterfaceContainer
     local tabindex = MTTSM_SubTableIndex(inputtable,interface)
@@ -206,8 +214,9 @@ local function MTTSM_InputFromFile(interface)
             MTTSM_Log_Write("MTTSM: "..MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
             --
             local temp = MTTSM_ServerProcessQueue[1][2]:gsub(" ","%%20")
-            if SYSTEM == "IBM" then os.execute('start /b \"CurlWin\" curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://localhost:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
-            elseif SYSTEM == "LIN" then os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            local volume = MTTSM_VoiceVolumeCorrection(MTTSM_ServerProcessQueue[1][1],MTTSM_VolumeCorrection)
+            if SYSTEM == "IBM" then io.popen('start /MIN \"\" curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            elseif SYSTEM == "LIN" then os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
 			elseif SYSTEM == "APL" then 
 			else return end                    
             --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
@@ -230,7 +239,7 @@ local function MTTSM_InputFromFile(interface)
                 if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/32000)) then
                     MTTSM_Log_Write("MTTSM: Playing back "..out_wav.." with "..MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4))
                     if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
-                    set_sound_gain(OutputWav,1.5)
+                    --set_sound_gain(OutputWav,1.5)
                     play_sound(OutputWav)
                     os.remove(out_wav)
                     MTTSM_PlaybackTimer_Ref[1] = os.time()
