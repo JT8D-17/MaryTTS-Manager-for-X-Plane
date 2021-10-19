@@ -172,6 +172,7 @@ do_often("MTTSM_Main_1sec()")
 EXIT
 
 ]]
+do_on_exit("MTTSM_Server_Stop()")
 do_on_exit("MTTSM_Menu_CleanUp()")
 --[[
 
