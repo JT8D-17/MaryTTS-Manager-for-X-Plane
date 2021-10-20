@@ -88,7 +88,7 @@ local function MTTSM_CheckProc()
 		MTTSM_ProcHandle = io.popen('start /b "TempWin" tasklist /FI "IMAGENAME eq java*" /FO CSV /NH')
 		MTTSM_Process = tonumber(string.match(MTTSM_ProcHandle:read("*a"),"exe\",\"(%d+)\",\""))
     elseif SYSTEM == "LIN" then 
-		MTTSM_ProcHandle = io.popen('pgrep -f java.*'..MTTSM_Handle)
+		MTTSM_ProcHandle = io.popen('pgrep -f java.*'..MTTSM_Handle..' | grep -v $$')
 		MTTSM_Process = tonumber(MTTSM_ProcHandle:read("*a"))
     elseif SYSTEM == "APL" then 
     else return end
