@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?><marytts-install xmlns="http://mary.dfki.de/installer">
+  <language locale="tr" name="tr" version="5.3-SNAPSHOT">
+    <description>Turkish language component</description>
+    <license href="http://www.gnu.org/licenses/lgpl-3.0-standalone.html"/>
+    <package filename="marytts-lang-tr-5.3-SNAPSHOT.zip" md5sum="dummy" size="0"/>
+  </language>
+</marytts-install>
