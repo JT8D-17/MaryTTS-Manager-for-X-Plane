@@ -1,6 +1,6 @@
 # MaryTTS Manager
 MaryTTS Manager (abbreviated as MTTSM) is a FlyWithLua-based user interface and manager to control  a [MaryTTS](http://mary.dfki.de/) text-to-speech server from within X-Plane 11.   
-It ships as an all-in-one, ready to go package with an implementation of [MaryTTS v5.2](https://github.com/marytts/marytts/releases/tag/v5.2) and [AdoptOpenJDK v.11.0.7+10-jre](https://adoptopenjdk.net/).
+It ships as an all-in-one, ready to go package with an implementation of [MaryTTS v5.3 (snapshot)](https://github.com/marytts/marytts) and [AdoptOpenJDK v.17.0.1+12-jre](https://adoptium.net/index.html?variant=openjdk17&jvmVariant=hotspot).
 
 
 &nbsp;
