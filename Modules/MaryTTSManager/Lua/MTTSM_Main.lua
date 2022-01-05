@@ -34,13 +34,13 @@ local MTTSM_InterfaceData = {
 }
 local MTTSM_PlaybackAgent = {"FlyWithLua","Plugin"}
 local MTTSM_JREFolder
-if SYSTEM == "IBM" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Windows/jdk-11.0.7+10-jre/bin/"
-elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-11.0.7+10-jre/bin/"
-elseif SYSTEM == "APL" then 
+if SYSTEM == "IBM" then -- MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Windows/jdk-11.0.7+10-jre/bin/" Not needed; path to JRE folder is controlled in the Powershell script.
+elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-17.0.1+12-jre/bin/"
+elseif SYSTEM == "APL" then
 else return end
-local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
-local MTTSM_ServerLog = MTTSM_MaryFolder.."log/server.log"
-local MTTSM_Log = MTTSM_BaseFolder.."Log_MaryTTS.txt"
+--local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
+local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.3/"
+local MTTSM_ServerLog = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
 local MTTSM_ProcHandle -- Initial MaryTTS server process handle
 local MTTSM_Process = nil
@@ -100,11 +100,12 @@ local function MTTSM_CheckServerLog(mode)
    local file = io.open(MTTSM_ServerLog,"r")
    if file then
         for line in file:lines() do
-            if mode == "Starting" and string.match(line,"marytts.server Waiting for client to connect on port") then
+            if mode == "Starting" and string.match(line,"INFO  JTok: loading language resources for en from jtok/en") then
                 MTTSM_CheckProc()
                 if MTTSM_Process ~= nil then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") MTTSM_Menu_Watchdog(5) end
             end
-            if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then
+            --if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then
+            if mode == "Stopping" then
                 MTTSM_CheckProc()
 				if MTTSM_Process == nil then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") MTTSM_Menu_Watchdog(5) break end
 			end
@@ -117,8 +118,10 @@ function MTTSM_Server_Start()
         os.remove(MTTSM_ServerLog) MTTSM_Notification("FILE DELETE: "..MTTSM_ServerLog,"Warning","log") MTTSM_Log_Write("MaryTTS Server: Deleted old server log file")
         if SYSTEM == "IBM" then 
         os.execute('powershell.exe -file \"'..MTTSM_BaseFolder..'\\Start_MaryTTS_Win.ps1\"') -- Unceremoniously has to start from a PowerShell script because Windows SUCKS
-        elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_Log..'\" &')
-		elseif SYSTEM == "APL" then 
+        --elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
+        --elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -Xlog:logging=trace:file='..MTTSM_ServerLog..' -classpath \"'..MTTSM_MaryFolder..'lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
+        elseif SYSTEM == "LIN" then os.execute('\"'..MTTSM_JREFolder..'java\" -Xlog:logging=trace:file='..MTTSM_ServerLog..'-classpath \"'..MTTSM_MaryFolder..'lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
+		elseif SYSTEM == "APL" then
 		else return end        
         MTTSM_Notification("MaryTTS Server: Starting","Advisory") MTTSM_Log_Write("MaryTTS Server: Starting")
         MTTSM_Status = "Starting"
@@ -221,7 +224,7 @@ local function MTTSM_InputFromFile(interface)
 			else return end                    
             --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
             --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
-            --
+            -- Remove first item from queue
             table.remove(MTTSM_ServerProcessQueue,1)
             --print("MTTSM: MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue)
         end
@@ -371,7 +374,7 @@ local function MTTSM_FindActiveInterfaces(container)
         end
     end
     MTTSM_Log_Write("MaryTTS Interfaces (Active): "..table.concat(MTTSM_ActiveInterfaces,", "))
-    MTTSM_Log_Write("MaryTTS Interfaces (Inctive): "..table.concat(inactiveifs,", "))
+    MTTSM_Log_Write("MaryTTS Interfaces (Inactive): "..table.concat(inactiveifs,", "))
 end
 --[[
 
