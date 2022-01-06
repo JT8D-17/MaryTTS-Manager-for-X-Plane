@@ -38,7 +38,6 @@ if SYSTEM == "IBM" then -- MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Windows/jdk-
 elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-17.0.1+12-jre/bin/"
 elseif SYSTEM == "APL" then
 else return end
---local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.2/"
 local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.3/"
 local MTTSM_ServerLog = MTTSM_BaseFolder.."Log_MaryTTS.txt"
 local MTTSM_Handle = "marytts.server.Mary"
@@ -95,22 +94,16 @@ local function MTTSM_CheckProc()
     --print(tostring(MTTSM_Process))
 end
 MTTSM_CheckProc() -- Run process detection once at script start
---[[ Checks the MaryTTS server's log file for startup and shutdown indicatons ]]
-local function MTTSM_CheckServerLog(mode)
-   local file = io.open(MTTSM_ServerLog,"r")
-   if file then
-        for line in file:lines() do
-            if mode == "Starting" and string.match(line,"INFO  JTok: loading language resources for en from jtok/en") then
-                MTTSM_CheckProc()
-                if MTTSM_Process ~= nil then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") MTTSM_Menu_Watchdog(5) end
-            end
-            --if mode == "Stopping" and string.match(line,"marytts.main Shutdown complete.") then
-            if mode == "Stopping" then
-                MTTSM_CheckProc()
-				if MTTSM_Process == nil then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") MTTSM_Menu_Watchdog(5) break end
-			end
-        end
-   end
+--[[ Checks the server process and once found, sets the status to "Started" ]]
+local function MTTSM_CheckServerStatus(mode)
+    if mode == "Starting" then
+        MTTSM_CheckProc()
+        if MTTSM_Process ~= nil then MTTSM_Status = "Running" MTTSM_Notification("MaryTTS Server: Started","Success") MTTSM_Log_Write("MaryTTS Server: Started (PID: "..MTTSM_Process..")") MTTSM_Menu_Watchdog(5) end
+    end
+    if mode == "Stopping" then
+        MTTSM_CheckProc()
+        if MTTSM_Process == nil then MTTSM_Status = "Stopped" MTTSM_Notification("MaryTTS Server: Stopped","Success") MTTSM_Log_Write("MaryTTS Server: Stopped") MTTSM_Menu_Watchdog(5) end
+    end
 end
 --[[ Starts the MaryTTS server ]]
 function MTTSM_Server_Start()
@@ -120,7 +113,7 @@ function MTTSM_Server_Start()
         os.execute('powershell.exe -file \"'..MTTSM_BaseFolder..'\\Start_MaryTTS_Win.ps1\"') -- Unceremoniously has to start from a PowerShell script because Windows SUCKS
         --elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -showversion -Xms40m -Xmx1g -cp \"'..MTTSM_MaryFolder..'/lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
         --elseif SYSTEM == "LIN" then os.execute('nohup \"'..MTTSM_JREFolder..'/java\" -Xlog:logging=trace:file='..MTTSM_ServerLog..' -classpath \"'..MTTSM_MaryFolder..'lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
-        elseif SYSTEM == "LIN" then os.execute('\"'..MTTSM_JREFolder..'java\" -Xlog:logging=trace:file='..MTTSM_ServerLog..'-classpath \"'..MTTSM_MaryFolder..'lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
+        elseif SYSTEM == "LIN" then os.execute('\"'..MTTSM_JREFolder..'java\" -classpath \"'..MTTSM_MaryFolder..'lib/*\" -Dmary.base=\"'..MTTSM_MaryFolder..'\" $* '..MTTSM_Handle..' >> \"'..MTTSM_ServerLog..'\" &')
 		elseif SYSTEM == "APL" then
 		else return end        
         MTTSM_Notification("MaryTTS Server: Starting","Advisory") MTTSM_Log_Write("MaryTTS Server: Starting")
@@ -259,9 +252,9 @@ PROCESS
 --[[ MaryTTS watchdog - runs every second in MTTSM_Main_1sec() in MaryTTSManager.lua ]]
 function MTTSM_Watchdog()
     --MTTSM_CheckProc() -- Continuous process check - disabled for performance reasons
-    if MTTSM_Status == "Starting" then MTTSM_CheckServerLog("Starting") end -- Status check during MaryTTS server startup
-    if MTTSM_Status == "Stopping" then MTTSM_CheckServerLog("Stopping") end -- Status check during MaryTTS server shutdown
-    if MTTSM_Process ~= nil and MTTSM_Status ~= "Running" then MTTSM_CheckServerLog("Starting") if MTTSM_Process ~= nil then MTTSM_Log_Write("MaryTTS Server: Already running (PID: "..MTTSM_Process..")") end end
+    if MTTSM_Status == "Starting" then MTTSM_CheckServerStatus("Starting") end -- Status check during MaryTTS server startup
+    if MTTSM_Status == "Stopping" then MTTSM_CheckServerStatus("Stopping") end -- Status check during MaryTTS server shutdown
+    if MTTSM_Process ~= nil and MTTSM_Status ~= "Running" then MTTSM_CheckServerStatus("Starting") if MTTSM_Process ~= nil then MTTSM_Log_Write("MaryTTS Server: Already running (PID: "..MTTSM_Process..")") end end
     -- Stuff to do when the server is up and running
     if MTTSM_Process ~= nil and MTTSM_Status == "Running" and MTTSM_InterfaceEditMode == 0 then
         for i=1,#MTTSM_ActiveInterfaces do -- Iterate through active interfaces
