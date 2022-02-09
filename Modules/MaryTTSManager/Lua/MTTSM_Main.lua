@@ -55,6 +55,20 @@ local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
 local MTTSM_ServerProcessQueue = { }
 local MTTSM_PlaybackTimer_Ref = {os.time(),0}
+local MTTSM_PhoneticCorrections = { -- Table with phonetic corrections for input strings to work around this MaryTTS bug: https://github.com/marytts/marytts/issues/817
+{"you're","you are"},
+{"I'm","I am"},
+{"he's","he is"},
+{"'ll"," will"},
+{"can't","can not"},
+{"won't","will not"},
+{"don't","do not"},
+{"didn't","did not"},
+{"haven't","have not"},
+{"shouldn't","should not"},
+{"shan't","shall not"},
+{"'",""}, -- Should always be last
+}
 -- Prime random number generator
 math.randomseed(os.time())
 math.random(); math.random(); math.random()
@@ -164,6 +178,19 @@ local function MTTSM_VoiceVolumeCorrection(input,table)
 	end
 	return output
 end
+--[[ Corrects problematic strings in an input string according to the resolution dictionary ]]
+local function MTTSM_ApplyPhoneticCorrection(input,dictionary)
+    local tempvar = input
+    for i=1,#dictionary do
+        tempvar = tempvar:gsub(dictionary[i][1],dictionary[i][2])
+    end
+    return tempvar
+end
+--[[ Encodes a string as URL - credit: https://www.rosettacode.org/wiki/URL_encoding#Lua ]]
+local function MTTSM_EncodeStringURL(input)
+   output = string.gsub(input,"[^%w]",function (chr) return string.format("%%%X",string.byte(chr)) end)
+   return output
+end
 --[[ Reads the selected input file ]]
 local function MTTSM_InputFromFile(interface)
     local inputtable = MTTSM_InterfaceContainer
@@ -209,7 +236,9 @@ local function MTTSM_InputFromFile(interface)
             end
             MTTSM_Log_Write("MTTSM: "..MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
             --
-            local temp = MTTSM_ServerProcessQueue[1][2]:gsub(" ","%%20")
+            local temp = MTTSM_ApplyPhoneticCorrection(MTTSM_ServerProcessQueue[1][2],MTTSM_PhoneticCorrections)
+            temp = MTTSM_EncodeStringURL(temp)
+            print(temp)
             local volume = MTTSM_VoiceVolumeCorrection(MTTSM_ServerProcessQueue[1][1],MTTSM_VolumeCorrection)
             if SYSTEM == "IBM" then io.popen('start /MIN \"\" curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
             elseif SYSTEM == "LIN" then os.execute('curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
