@@ -46,7 +46,8 @@ MacOS/OSX: Unknown due to a lack of willing and able testers
 <a name="install"></a>
 ## 2 - Installation
 
-Copy the "Scripts" and "Modules" folders into _"X-Plane 11/Resources/plugins/FlyWithLua/"_
+- Click "Code" --> "Download ZIP" or use [this link](https://github.com/JT8D-17/MaryTTS-Manager-for-X-Plane/archive/refs/heads/main.zip).
+- Unzip the archive and copy the "Scripts" and "Modules" folders into _"X-Plane 11/Resources/plugins/FlyWithLua/"_
 
 
 [Back to table of contents](#toc)
@@ -235,8 +236,9 @@ The path to the settings file is: `FlyWithLua/Modules/MaryTTSManager/UI_Prefs.cf
 <a name="issues"></a>
 ## 7 - Known issues
 
-- There is a slight delay between sending a string to the server and hearing it due to the required processing from text to speech
+- There is a slight delay between sending a string to the server and hearing it due to the required processing from text to speech.
 - Voice quality may be too low for some people, but this is as good as it gets with MaryTTS.
+- MaryTTS still has bugs, especially with [strings with apostrophes](https://github.com/marytts/marytts/issues/817). MTTSM attempts to expand such strings (e.g. "you're" --> "you are") but naturally can't catch all of them (see *MTTSM_PhoneticCorrections* in *Modules/MaryTTSManager/Lua/MTTSM_Main.lua*), so it's best to avoid contractions where possible.
 - Text input boxes will not automatically unfocus. Click anywhere inside the UI to unfocus them.
 - Checking for the server process may produce system stutters, especially on Windows
 - Checking for an input file or playing back an output wave file may slightly degrade simulator performance
