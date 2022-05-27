@@ -1,6 +1,6 @@
 # MaryTTS Manager
 MaryTTS Manager (abbreviated as MTTSM) is a FlyWithLua-based user interface and manager to control  a [MaryTTS](http://mary.dfki.de/) text-to-speech server from within X-Plane 11.   
-It ships as an all-in-one, ready to go package with an implementation of [MaryTTS v5.3 (snapshot)](https://github.com/marytts/marytts) and [AdoptOpenJDK v.17.0.1+12-jre](https://adoptium.net/index.html?variant=openjdk17&jvmVariant=hotspot).
+It ships as an all-in-one, ready to go package with an implementation of [MaryTTS v5.3 (snapshot)](https://github.com/marytts/marytts) and [Adoptium Eclipse Temurin OpenJDK](https://adoptium.net/temurin/releases?version=18).
 
 
 &nbsp;
@@ -35,7 +35,7 @@ MacOS/OSX: Unknown due to a lack of willing and able testers
 - All: [X-Plane 11](https://www.x-plane.com/) (version 11.50 or higher)
 - All: [FlyWithLuaNG](https://forums.x-plane.org/index.php?/files/file/38445-flywithlua-ng-next-generation-edition-for-x-plane-11-win-lin-mac/) (version 2.7.28 or higher)
 - Linux: System packages providing the _curl_, _kill_, _ls_ and _pgrep_ commands
-- Windows: Any version that provides the _curl_, _dir_, _start_,  _taskkill_ and _tasklist_ commands (10 does)
+- Windows: Any version that provides the _curl_, _dir_, _start_,  _taskkill_ and _tasklist_ commands (Windows 10 or newer)
 
 **Please check and confirm that your system fulfills the operating system specific requirements before installing MTTSM!**
 
@@ -134,7 +134,7 @@ The MTTSM window will automatically open upon X-Plane session start if both the 
 &nbsp;
  
 <a name=mainmenu"></a>
-###6.1 - Main Menu
+### 6.1 - Main Menu
 
 Click the _"Server and Interface"_ or _"UI Settings"_ button to enter the respective menu. Each of these menus offers a _"Main Menu"_ button to immediately return.
  
@@ -143,7 +143,7 @@ Click the _"Server and Interface"_ or _"UI Settings"_ button to enter the respec
  &nbsp;
  
  <a name="serverinterface"></a>
-###6.2 - Server and Interface Menu
+### 6.2 - Server and Interface Menu
 
 **6.2.1 - Interface selector**
 

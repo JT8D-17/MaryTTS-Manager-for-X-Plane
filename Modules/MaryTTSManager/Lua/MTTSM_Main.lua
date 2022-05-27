@@ -35,7 +35,7 @@ local MTTSM_InterfaceData = {
 local MTTSM_PlaybackAgent = {"FlyWithLua","Plugin"}
 local MTTSM_JREFolder
 if SYSTEM == "IBM" then -- MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Windows/jdk-11.0.7+10-jre/bin/" Not needed; path to JRE folder is controlled in the Powershell script.
-elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-17.0.1+12-jre/bin/"
+elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-18.0.1+10-jre/bin/"
 elseif SYSTEM == "APL" then
 else return end
 local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.3/"
