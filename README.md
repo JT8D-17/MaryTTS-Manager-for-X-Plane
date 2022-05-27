@@ -133,7 +133,7 @@ The MTTSM window will automatically open upon X-Plane session start if both the 
 
 &nbsp;
  
-<a name=mainmenu"></a>
+<a name="mainmenu"></a>
 ### 6.1 - Main Menu
 
 Click the _"Server and Interface"_ or _"UI Settings"_ button to enter the respective menu. Each of these menus offers a _"Main Menu"_ button to immediately return.
