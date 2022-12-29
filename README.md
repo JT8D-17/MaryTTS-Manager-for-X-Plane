@@ -76,7 +76,9 @@ It is basically a bridge between an X-Plane plugin (or FlyWithLua or XLua or SAS
 
 It was developed for use with the _SimpleATC_ module of [X-ATC-Chatter](https://www.stickandrudderstudios.com/x-atc-chatter-project/) in close cooperation with [Stick and Rudder studios](https://www.stickandrudderstudios.com/) to provide multiple pilot and controller voices for Linux users.
 
-MaryTTS is a Java application and therefore requires a Java runtime environment (JRE) on the system. Since the capabilities and compaitibility of available JREs vary greatly and would lead to compatibility issues with MaryTTS, a local JRE installation for use by the MaryTTS server is provided by in the MTTSM package by a binary from [AdoptOpenJDK](https://adoptopenjdk.net/).
+MaryTTS is a Java application and therefore requires a Java runtime environment (JRE) on the system. Since the capabilities and compaitibility of available JREs vary greatly and would lead to compatibility issues with MaryTTS, a local JRE installation for use by the MaryTTS server is provided by in the MTTSM package by a binary from [Adoptium](https://https://adoptium.net/).
+
+For normalizing volume levels, MaryTTS Manager ships with a standalone FFmpeg binary obtained from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases).
 
 &nbsp;
 
@@ -255,6 +257,8 @@ MaryTTS Manager is licensed under the European Union Public License v1.2 (see _E
 
 [MaryTTS license](https://github.com/marytts/marytts/blob/master/LICENSE.md)
 
-[AdoptOpenJDK license](https://adoptopenjdk.net/faq.html?variant=openjdk11&jvmVariant=openj9#licensing)
+[Adoptium license](https://adoptium.net/docs/faq/)
+
+[FFmpeg license](https://www.ffmpeg.org/legal.html)
 
 [Back to table of contents](#toc)

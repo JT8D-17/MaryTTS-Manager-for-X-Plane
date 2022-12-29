@@ -14,6 +14,7 @@ local MTTSM_PageInitStatus = 0            -- Page initialization variable
 local MTTSM_Module_SaveFile = MODULES_DIRECTORY.."MaryTTSManager/MaryTTS_Test.cfg" -- Path to config file
 local MTTSM_BaseFolder = MODULES_DIRECTORY.."MaryTTSManager/Resources/"
 local MTTSM_InterfFolder = MODULES_DIRECTORY.."MaryTTSManager/Interfaces"
+local MTTSM_TempFile = MODULES_DIRECTORY.."MaryTTSManager/temp.wav" -- Temporary output file for loudness correction
 local MTTSM_InputBaseFolder = {
     {"MaryTTSManager Directory",MODULES_DIRECTORY.."MaryTTSManager/"},
     {"X-Plane Plugins Directory",SYSTEM_DIRECTORY.."Resources"..DIRECTORY_SEPARATOR.."plugins/"},
@@ -35,7 +36,7 @@ local MTTSM_InterfaceData = {
 local MTTSM_PlaybackAgent = {"FlyWithLua","Plugin"}
 local MTTSM_JREFolder
 if SYSTEM == "IBM" then -- MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Windows/jdk-11.0.7+10-jre/bin/" Not needed; path to JRE folder is controlled in the Powershell script.
-elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-18.0.1+10-jre/bin/"
+elseif SYSTEM == "LIN" then MTTSM_JREFolder = MTTSM_BaseFolder.."JRE/Linux/jdk-19.0.1+10-jre/bin/"
 elseif SYSTEM == "APL" then
 else return end
 local MTTSM_MaryFolder = MTTSM_BaseFolder.."marytts-5.3/"
@@ -50,7 +51,7 @@ local MTTSM_VoiceList = { }
 local MTTSM_VoiceSelected = " "
 local MTTSM_PrevActor = {"None","None"}  -- The actor of the previous voice communication
 local MTTSM_FilterList = {"None","JetPilot"}
-local MTTSM_VolumeCorrection = {{"dfki-obadiah-hsmm",1.09},{"dfki-poppy-hsmm",2.0},{"dfki-prudence-hsmm",1.3},{"dfki-spike-hsmm",1.075}}
+local MTTSM_VolumeCorrection = {{"cmu-bdl-hsmm",0.8},{"dfki-prudence-hsmm",4.7},{"dfki-spike-hsmm",3.0},{"dfki-poppy-hsmm",11.7},{"dfki-obadiah-hsmm",0.4},{"cmu-rms-hsmm",0.5}} -- Offset in decibels for RMS = -16 db
 local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
 local MTTSM_ServerProcessQueue = { }
@@ -209,7 +210,8 @@ local function MTTSM_InputFromFile(interface)
     end
     -- Sends the first item from the process queue to the MaryTTS server
     if #MTTSM_ServerProcessQueue > 0 then
-        local f = io.open(MTTSM_ServerProcessQueue[1][3],"r") -- Check for presence of output WAV
+        -- PART 1: GENERATE TEMPORARY FILE FROM MARYTTS
+        local f = io.open(MTTSM_TempFile,"r") -- Check for presence of temporary WAV
         if f == nil then
             -- Assigns a a voice from the voice mapping or randomly
             if MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") > 1 then
@@ -235,17 +237,28 @@ local function MTTSM_InputFromFile(interface)
                 end
             end
             MTTSM_Log_Write("MTTSM: "..MTTSM_ServerProcessQueue[1][1].." says \""..MTTSM_ServerProcessQueue[1][2].."\" and outputs to "..MTTSM_ServerProcessQueue[1][3])
-            --
+            -- Apply correction and encode
             local temp = MTTSM_ApplyPhoneticCorrection(MTTSM_ServerProcessQueue[1][2],MTTSM_PhoneticCorrections)
             temp = MTTSM_EncodeStringURL(temp)
-            print(temp)
-            local volume = MTTSM_VoiceVolumeCorrection(MTTSM_ServerProcessQueue[1][1],MTTSM_VolumeCorrection)
-            if SYSTEM == "IBM" then io.popen('start /MIN \"\" curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
-            elseif SYSTEM == "LIN" then os.execute('curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
-			elseif SYSTEM == "APL" then 
+            --print(temp)
+            --if SYSTEM == "IBM" then io.popen('start /MIN \"\" curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            if SYSTEM == "IBM" then io.popen('start /MIN \"\" curl -o \"'..MTTSM_TempFile..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            --elseif SYSTEM == "LIN" then os.execute('curl -o \"'..MTTSM_ServerProcessQueue[1][3]..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D'..volume..'%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+            elseif SYSTEM == "LIN" then os.execute('curl -o \"'..MTTSM_TempFile..'\" "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+			elseif SYSTEM == "APL" then
 			else return end                    
-            --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
-            --os.execute('curl -o '..MTTSM_ServerProcessQueue[1][3]..' "http://127.0.0.1:59125/process?INPUT_TYPE=TEXT&OUTPUT_TYPE=AUDIO&LOCALE=en_US&&effect_Volume_parameters=amount%3D2.0%3B&effect_Volume_selected=on&effect_JetPilot_selected=on&AUDIO=WAVE_FILE&VOICE='..MTTSM_ServerProcessQueue[1][1]..'&INPUT_TEXT="'..temp)
+        end
+        -- PART 2: CORRECT TEMPORARY FILE LOUDNESS AND OUTPUT
+        local f2 = io.open(MTTSM_ServerProcessQueue[1][3],"r") -- Check for presence of ouput WAV
+        if f2 == nil then
+            local volume = MTTSM_VoiceVolumeCorrection(MTTSM_ServerProcessQueue[1][1],MTTSM_VolumeCorrection)
+            -- Apply loudness correction with ffmpeg
+            if SYSTEM == "IBM" then io.popen('start /MIN \"'..MTTSM_BaseFolder..'FFmpeg/Win/ffmpeg.exe\" -i \"'..MTTSM_TempFile..'\" -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
+            elseif SYSTEM == "LIN" then os.execute('\"'..MTTSM_BaseFolder..'FFmpeg/Lin/ffmpeg\" -i \"'..MTTSM_TempFile..'\" -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
+			elseif SYSTEM == "APL" then
+			else return end
+			-- Remove temporary output file
+			os.remove(MTTSM_TempFile)
             -- Remove first item from queue
             table.remove(MTTSM_ServerProcessQueue,1)
             --print("MTTSM: MaryTTS Input Queue Length Size: "..#MTTSM_ServerProcessQueue)
@@ -264,8 +277,10 @@ local function MTTSM_InputFromFile(interface)
                 if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/32000)) then
                     MTTSM_Log_Write("MTTSM: Playing back "..out_wav.." with "..MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4))
                     if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
+                    --if OutputWav == nil then OutputWav = load_fmod_sound(out_wav) end --else replace_WAV_file(OutputWav,out_wav) end
                     --set_sound_gain(OutputWav,1.5)
                     play_sound(OutputWav)
+                    --play_sound_on_master_bus(OutputWav)
                     os.remove(out_wav)
                     MTTSM_PlaybackTimer_Ref[1] = os.time()
                 end
