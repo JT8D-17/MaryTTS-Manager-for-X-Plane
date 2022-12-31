@@ -32,6 +32,7 @@ local MTTSM_InterfaceData = {
 {"Input",MTTSM_InputBaseFolder[1][1],"Input_MaryTTS.txt","::"},
 {"Output",MTTSM_InputBaseFolder[1][1],"transmission.wav","FlyWithLua"},
 {"Voicemap"},
+{"VolumeGain",0},
 }
 local MTTSM_PlaybackAgent = {"FlyWithLua","Plugin"}
 local MTTSM_JREFolder
@@ -50,7 +51,6 @@ local MTTSM_InterfaceEditMode = 0
 local MTTSM_VoiceList = { }
 local MTTSM_VoiceSelected = " "
 local MTTSM_PrevActor = {"None","None"}  -- The actor of the previous voice communication
-local MTTSM_FilterList = {"None","JetPilot"}
 local MTTSM_VolumeCorrection = {{"cmu-bdl-hsmm",0.8},{"dfki-prudence-hsmm",4.7},{"dfki-spike-hsmm",3.0},{"dfki-poppy-hsmm",11.7},{"dfki-obadiah-hsmm",0.4},{"cmu-rms-hsmm",0.5}} -- Offset in decibels for RMS = -16 db
 local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
@@ -174,7 +174,7 @@ local function MTTSM_VoiceVolumeCorrection(input,table)
 	for i=1,#table do
 		if input == table[i][1] then 
 			output = table[i][2]
-			--print("Volume level of "..input.." set to "..output)
+			--print("Volume correction for "..input.." is "..output.." dB")
 		end
 	end
 	return output
@@ -252,6 +252,7 @@ local function MTTSM_InputFromFile(interface)
         local f2 = io.open(MTTSM_ServerProcessQueue[1][3],"r") -- Check for presence of ouput WAV
         if f2 == nil then
             local volume = MTTSM_VoiceVolumeCorrection(MTTSM_ServerProcessQueue[1][1],MTTSM_VolumeCorrection)
+            if MTTSM_SubTableValGet(inputtable[tabindex][2],"VolumeGain",0,2) ~= 0 then volume = volume + MTTSM_SubTableValGet(inputtable[tabindex][2],"VolumeGain",0,2) end -- Apply offset specified in interface file
             -- Apply loudness correction with ffmpeg
             if SYSTEM == "IBM" then io.popen('start /MIN \"'..MTTSM_BaseFolder..'FFmpeg/Win/ffmpeg.exe\" -i \"'..MTTSM_TempFile..'\" -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
             elseif SYSTEM == "LIN" then os.execute('\"'..MTTSM_BaseFolder..'FFmpeg/Lin/ffmpeg\" -i \"'..MTTSM_TempFile..'\" -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
@@ -366,8 +367,10 @@ local function MTTSM_InterfaceLoad(inputfolder,container,datatable)
         for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for output subtable to subtable in container
         indexvar = MTTSM_SubTableIndex(datatable,"Voicemap")
         for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for voicemap subtable to subtable in container
+        indexvar = MTTSM_SubTableIndex(datatable,"VolumeGain")
+        for k =1,#MTTSM_InterfaceData[indexvar] do container[i][2][indexvar][k] = MTTSM_InterfaceData[indexvar][k] end -- Write default values for dataref subtable to subtable in container
         -- Read interface files
-        if i >= 3 then MTTSM_FileRead(inputfolder.."/"..container[i][1]..".cfg",container[i][2]) end -- Read data from file into interface data table
+        if i >= 4 then MTTSM_FileRead(inputfolder.."/"..container[i][1]..".cfg",container[i][2]) end -- Read data from file into interface data table
     end
     --for m=1,#container do print(container[m][2][5][1]) print(#container[m][2][5]) end
 end
@@ -485,7 +488,11 @@ local function MTTSM_InterfaceStatus(inputtable)
         end
         imgui.EndCombo()
     end
-    MTTSM_ItemTooltip("The agent that plays back the output WAV file.")  
+    MTTSM_ItemTooltip("The agent that plays back the output WAV file.")
+    imgui.TextUnformatted(editstring.."Volume Gain     ") imgui.SameLine()
+    local changed, newVal = imgui.SliderFloat("##volslider2",MTTSM_SubTableValGet(inputtable[tabindex][2],"VolumeGain",0,2),-12,12, "%.2f dB")
+    if changed then MTTSM_SubTableValSet(inputtable[tabindex][2],"VolumeGain",0,2,newVal) end
+    MTTSM_ItemTooltip("The offset, in decibels, to the regular volume of the generated audio files.")
     imgui.PopItemWidth()
     if MTTSM_InterfaceSelected ~= MTTSM_InterfaceContainer[1][1] then
         if MTTSM_SubTableLength(inputtable[tabindex][2],"Voicemap") > 1 then
@@ -562,11 +569,8 @@ local function MTTSM_Testing(inputtable)
             end
             imgui.EndCombo()
         end
-        imgui.PopItemWidth()
         MTTSM_ItemTooltip("The voice actor that speaks the above string.")
-        --imgui.TextUnformatted("Volume/Filter:        ") --imgui.SameLine()
-        --imgui.SameLine() imgui.Dummy((MTTSM_SettingsValGet("Window_W")-395),20) imgui.SameLine()
-        --imgui.Dummy(MTTSM_SettingsValGet("Window_W")-180,5)
+        imgui.PopItemWidth()
         imgui.Dummy(19,20) imgui.SameLine()
         if imgui.Button("Speak",MTTSM_SettingsValGet("Window_W")-59,20) then MTTSM_OutputToFile(MTTSM_InterfaceContainer[1][1],MTTSM_VoiceSelected,MTTSM_TestString) end
         MTTSM_ItemTooltip("Speaks the string with the selected voice.")
