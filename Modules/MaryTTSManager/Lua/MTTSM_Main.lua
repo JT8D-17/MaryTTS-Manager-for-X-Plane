@@ -51,7 +51,7 @@ local MTTSM_InterfaceEditMode = 0
 local MTTSM_VoiceList = { }
 local MTTSM_VoiceSelected = " "
 local MTTSM_PrevActor = {"None","None"}  -- The actor of the previous voice communication
-local MTTSM_VolumeCorrection = {{"cmu-bdl-hsmm",0.8},{"dfki-prudence-hsmm",4.7},{"dfki-spike-hsmm",3.0},{"dfki-poppy-hsmm",11.7},{"dfki-obadiah-hsmm",0.4},{"cmu-rms-hsmm",0.5}} -- Offset in decibels for RMS = -16 db
+local MTTSM_VolumeCorrection = {{"cmu-bdl-hsmm",3.83},{"dfki-prudence-hsmm",7.7},{"dfki-spike-hsmm",6.08},{"dfki-poppy-hsmm",14.8},{"dfki-obadiah-hsmm",3.7},{"cmu-rms-hsmm",3.5}} -- Offset in decibels for RMS = -16 db
 local MTTSM_TestString = " "
 local MTTSM_ActiveInterfaces = { }
 local MTTSM_ServerProcessQueue = { }
@@ -254,8 +254,9 @@ local function MTTSM_InputFromFile(interface)
             local volume = MTTSM_VoiceVolumeCorrection(MTTSM_ServerProcessQueue[1][1],MTTSM_VolumeCorrection)
             if MTTSM_SubTableValGet(inputtable[tabindex][2],"VolumeGain",0,2) ~= 0 then volume = volume + MTTSM_SubTableValGet(inputtable[tabindex][2],"VolumeGain",0,2) end -- Apply offset specified in interface file
             -- Apply loudness correction with ffmpeg
-            if SYSTEM == "IBM" then io.popen('start /MIN \"'..MTTSM_BaseFolder..'FFmpeg/Win/ffmpeg.exe\" -i \"'..MTTSM_TempFile..'\" -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
-            elseif SYSTEM == "LIN" then os.execute('\"'..MTTSM_BaseFolder..'FFmpeg/Lin/ffmpeg\" -i \"'..MTTSM_TempFile..'\" -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
+            if SYSTEM == "IBM" then io.popen('start /MIN \"'..MTTSM_BaseFolder..'FFmpeg/Win/ffmpeg.exe\" -i \"'..MTTSM_TempFile..'\" -ac 2 -ar 22050 -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
+            elseif SYSTEM == "LIN" then
+                os.execute('\"'..MTTSM_BaseFolder..'FFmpeg/Lin/ffmpeg\" -i \"'..MTTSM_TempFile..'\" -ac 2 -ar 22050 -filter:a \"volume='..volume..'dB\" \"'..MTTSM_ServerProcessQueue[1][3]..'\"')
 			elseif SYSTEM == "APL" then
 			else return end
 			-- Remove temporary output file
@@ -268,18 +269,18 @@ local function MTTSM_InputFromFile(interface)
     -- If playback is set to FWL, play WAV file there
     if MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4) == "FlyWithLua" then
         local out_wav = MTTSM_PathConstructor(interface,"Output","Full")
+        local bitrate = 88200 -- Stereo, 22,05 kHz, determined from filesize and reference WAV file audio length
         local f = io.open(out_wav,"r") -- Check for presence of output WAV
         if f ~= nil then
             local fsize = MTTS_GetFileSize(f)
-            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/32000).." seconds")
+            --print("MTTSM: Filesize is "..fsize.." bytes; length is "..(fsize/bitrate).." seconds")
             io.close(f)
             -- Timer:
             if MTTSM_PlaybackTimer_Ref[2] == 1 then -- Unlock delay before first playback
-                if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/32000)) then
+                if os.time() > (MTTSM_PlaybackTimer_Ref[1] + math.ceil(fsize/bitrate)) then
                     MTTSM_Log_Write("MTTSM: Playing back "..out_wav.." with "..MTTSM_SubTableValGet(inputtable[tabindex][2],"Output",0,4))
                     if OutputWav == nil then OutputWav = load_WAV_file(out_wav) else replace_WAV_file(OutputWav,out_wav) end
                     --if OutputWav == nil then OutputWav = load_fmod_sound(out_wav) end --else replace_WAV_file(OutputWav,out_wav) end
-                    --set_sound_gain(OutputWav,1.5)
                     play_sound(OutputWav)
                     --play_sound_on_master_bus(OutputWav)
                     os.remove(out_wav)
